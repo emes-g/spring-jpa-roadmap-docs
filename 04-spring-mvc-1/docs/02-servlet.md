@@ -103,3 +103,72 @@ response.getWriter().write("hello " + username); // HTTP 응답 메시지 바디
   - 그 결과, 내장 톰캣이 정확히 `servlet/src/main/webapp` 경로를 웹 루트로 인식하게 되어 정적 파일(`index.html`)을 정상적으로 찾아 렌더링한다.
 
 ---
+
+## HttpServletRequest에 담긴 정보
+### HTTP 요청 메시지 파싱 정보
+> **`HttpServletRequest` 객체는 HTTP 요청 메시지를 파싱하여 Start Line, Header, Body 및 기타 네트워크 부가 정보를 개발자가 편리하게 조회할 수 있도록 제공**한다.
+
+#### Start Line 정보
+```java
+String method = request.getMethod();    // GET
+String protocol = request.getProtocol();    // HTTP/1.1
+String scheme = request.getScheme();    // http 
+StringBuffer requestURL = request.getRequestURL();  // http://localhost:8080/request-header
+String requestURI = request.getRequestURI();    // /request-header
+String queryString = request.getQueryString();  // username=kim
+boolean secure = request.isSecure();    // https 사용 유무
+```
+- **URL 문법 구조(`scheme://[userinfo@]host[:port][/path][?query][#fragment]`)를 기준으로 생각**해보자.
+  - `request.getScheme()`: 리소스 접근 방법 (`http`, `https`) 
+  - `request.getProtocol()`: 통신 규약 및 버전 (`HTTP/1.1`)
+  - `request.getRequestURL()`: host, port, path를 포함한 전체 주소 (`localhost:8080/request-param`)
+  - `request.getRequestURI()`: host, port를 제외한 리소스 식별 경로 (`/request-param`)
+- **명명 규칙(Scheme, Protocol, URL, URI 등)이 직관적이진 않지만, 자바 서블릿 스펙에 정의된 표준이므로 명칭과 역할을 있는 그대로 받아들이고 사용**해야 한다.
+
+#### Header 정보 (원형)
+```java
+request.getHeaderNames().asIterator()
+                .forEachRemaining(headerName -> System.out.println(headerName + " = " + request.getHeader(headerName)));
+```
+- 위와 같이 **전체 헤더를 조회할 수도 있고, `request.getHeaderName()`을 통해 특정 헤더만 조회**할 수도 있다.
+  - 예1) `request.getHeaderName(host) = localhost:8080`
+  - 예2) `request.getHeaderName(accept-language) = ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7`
+
+#### Header 정보 (가공)
+- 서블릿은 **자주 사용하는 헤더를 쉽게 읽을 수 있도록 전용 메서드를 지원**한다.
+- `request.getServerName()`, `request.getServerPort()`: `Host` 헤더 정보를 가공하여 반환한다.
+  - 예) `request.getServerName() = localhost`
+  - 예) `request.getServerPort() = 8080`
+- `request.getLocale()`: `Accept-Language` 헤더를 파싱하여 가장 우선순위가 높은 언어 정보를 객체로 반환한다.
+  - 예) `request.getLocale() = ko_KR`
+
+#### Body 정보
+- `request.getContentType()`: 클라이언트가 보낸 데이터의 형식(`Content-Type` 헤더)을 조회한다.
+- `request.getContentLength()`: 바디 데이터의 전체 크기를 조회한다.
+- `request.getParameter()`: GET 쿼리 파라미터나 POST Form 데이터를 조회한다.
+  - 순수 텍스트나 HTTP API(JSON 객체)는 별도의 스트림을 통해 직접 읽어들여야 한다.
+
+#### 기타 네트워크 정보 (부가 정보)
+- **HTTP 표준 메시지 스펙에는 없지만, 실제 네트워크 소켓 연결을 통해 획득할 수 있는 부가 정보**이다. (거의 사용하지 않는다.)
+- **Remote (요청을 보낸 클라이언트/프록시 정보):** 
+  - `request.getRemoteHost()`
+  - `request.getRemoteAddr()`
+  - `request.getRemotePort()`
+- **Local (요청을 받은 서버 정보):**
+  - `request.getLocalName()`
+  - `request.getLocalAddr()`
+  - `request.getLocalPort()`
+
+### 서블릿 제공 부가 기능
+#### 임시 저장소 기능
+- **`request.setAttribute(name, value)`와 `request.getAttribute(name)`을 통해 데이터를 저장하고 조회**한다.
+- HTTP 요청이 서버에 들어와서 응답이 나갈 때까지만 생명주기가 유지(request scope)되므로, 주로 **MVC 패턴에서 컨트롤러와 뷰 사이의 데이터 전달 목적으로 사용**된다.
+
+#### 세션 관리 기능
+- **`request.getSession()`을 호출하여 사용자의 로그인 상태 등을 유지하는 세션 객체를 생성하거나 조회**할 수 있다.
+
+### 시사점
+- **`HttpServletRequest` 객체는 HTTP 요청 메시지 텍스트를 파싱하여 개발자가 다루기 편한 객체 형태로 감싸놓은 래퍼(Wrapper)에 불과**하다.
+- 따라서 이 객체가 제공하는 다양한 기능들을 온전히 이해하고 활용하려면, **근간이 되는 HTTP 스펙과 메시지 구조 자체에 대한 이해가 선행**되어야 한다.
+
+---
