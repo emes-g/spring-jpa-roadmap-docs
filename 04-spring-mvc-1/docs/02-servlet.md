@@ -172,3 +172,75 @@ request.getHeaderNames().asIterator()
 - 따라서 이 객체가 제공하는 다양한 기능들을 온전히 이해하고 활용하려면, **근간이 되는 HTTP 스펙과 메시지 구조 자체에 대한 이해가 선행**되어야 한다.
 
 ---
+
+## 클라이언트에서 서버로 데이터를 전달하는 방법
+### GET 쿼리 파라미터 & POST HTML Form
+> **브라우저 주소창이나 HTML Form을 통해 서버로 데이터를 전달하는 방식**이다.
+
+#### 차이점 (메시지 바디 사용 유무)
+- **GET 쿼리 파라미터:** 
+  - **URL의 쿼리 스트링을 통해 데이터를 전송하는 방식**으로, **HTTP 메시지 바디를 사용하지 않는다.**
+- **POST HTML Form:** 
+  - **HTML Form 태그를 사용하는 방식**으로, **데이터를 HTTP 메시지 바디에 담아 전달**한다.
+  - 메시지 바디를 사용하기 때문에, `Content-Type` 값을 필수적으로 지정해야 한다.
+  - `Content-Type: application/x-www-form-urlencoded`
+
+#### 공통점
+- 전달되는 데이터의 형식(Key-Value 파라미터 쌍) 자체가 동일하기 때문에, **서버(서블릿) 입장에서는 동일한 방식으로 데이터를 조회**할 수 있다.
+- 참고로, **파라미터의 키는 대소문자를 구분**한다. (`username`과 `userName`은 다른 파라미터이다.)
+
+#### 파라미터 조회 메서드
+- **`request.getParameterNames():`** 모든 파라미터명(키)을 조회한다.
+- **`request.getParameter(name):`** 특정 단일 파라미터 값을 조회한다.
+- **`request.getParameterValues(name):`** 특정 파라미터 값들을 조회한다. (`String[]`의 형태)
+- **`request.getParameterMap():`** 모든 파라미터를 조회한다. (`Map<String, String[]>`의 형태)
+
+### HTTP API
+> **순수 데이터를 HTTP 메시지 바디에 담아 전달하는 방식으로, 다양한 시스템 간의 통신에서 활용**된다. 
+
+#### 활용처
+- 웹 클라이언트(React, Vue.js, 브라우저 내 자바스크립트) ↔ WAS 서버 (정확히는, 중간에 웹 서버를 한 단계 거치지만)
+- WAS 서버 ↔ WAS 서버 (MSA 등 서버 간 통신(S2S)이 필요한 경우)
+- 앱 클라이언트(아이폰, 안드로이드, PC 데스크톱 앱) ↔ WAS 서버
+
+#### 단순 텍스트 데이터 전달 (`Content-Type: text/plain`)
+```java
+ServletInputStream inputStream = request.getInputStream();  // 컨텐츠 꺼내기
+String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8); // 문자열로 변환
+
+System.out.println("messageBody = " + messageBody);
+```
+- `request.getInputStream()`을 호출하여, 컨텐츠(메시지 바디의 내용)를 바이트 스트림으로 꺼낸다.
+- 스프링이 제공하는 `StreamUtils.copyToString()`을 사용하여 바이트 스트림을 문자열로 변환한다.
+- **인코딩(바이트 ↔ 문자)할 때는 기준이 되는 문자표(주로 `UTF_8`)를 명시해야 데이터가 깨지지 않는다.** 
+  - 참고로 UTF란 **유니코드 문자(전 세계 문자)를 바이트로 변환하기 위해 필요한 인코딩 규격**이다.
+
+#### JSON 데이터 전달 (`Content-Type: application/json`)
+```java
+// 1. 컨텐츠(바이트 스트림)을 문자열로 변환
+ServletInputStream inputStream = request.getInputStream();
+String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+
+// 2. 역직렬화
+HelloData helloData = objectMapper.readValue(messageBody, HelloData.class);
+``` 
+- JSON 자체는 단순한 문자열 데이터이므로, **JSON 데이터를 자바 애플리케이션에서 사용하기 위해서는 역직렬화** 과정을 거쳐야 한다.
+- 스프링에서는 기본적으로 **`Jackson` 라이브러리의 `ObjectMapper` 클래스를 통해 JSON 데이터의 직렬화/역직렬화 작업을 수행**할 수 있다. 
+  - `objectMapper.readValue(String, Class<T>)`: JSON 데이터를 (자바 객체로) 역직렬화한다.
+
+### 데이터 변환 관련 용어
+#### 직렬화 (Serialization)
+- **메모리 상의 객체를 텍스트 데이터(JSON 등) 혹은 바이트 스트림으로 변환하는 과정**이다. (**데이터 전송/저장**이 목적)
+
+#### 역직렬화 (Deserialization)
+- **직렬화된 데이터(텍스트 혹은 바이트 스트림)를 객체로 복원하는 과정**이다. (**애플리케이션 내 사용**이 목적)
+- 역직렬화는 **내부적으로 파싱 → 객체 생성 → 데이터 바인딩으로 구성**되어 있다.
+
+#### 파싱 (Parsing)
+- **텍스트 데이터(텍스트 형태의 덩어리 데이터)의 구조를 분석**하여, **의미 있는 최소 단위(Token)로 분해하는 과정**이다.
+- 예) Request Line에서 HTTP 메서드, URL(Request Target), 프로토콜 버전을 분리해 내는 작업
+
+#### 데이터 바인딩 (Data Binding)
+- **파싱되어 분리된 데이터(값)들을 깡통(새로 생성된) 객체의 적절한 필드에 주입하는 과정**이다.
+
+---
