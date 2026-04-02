@@ -76,7 +76,7 @@ response.getWriter().write("hello " + username); // HTTP 응답 메시지 바디
 
 ### 서블릿 컨테이너 동작 흐름 정리
 1. **스프링 부트를 실행하면 메모리에 내장 톰캣 서버(WAS) 객체가 생성**된다.
-2. **톰캣 내부의 서블릿 컨테이너가 `@ServletComponentScan`을 통해 찾은 서블릿 인스턴스들을 미리 생성**해 둔다.
+2. **톰캣 내부의 서블릿 컨테이너가 `@ServletComponentScan`로 탐색한 서블릿 인스턴스들을 미리 생성**해 둔다.
 3. 웹 브라우저에서 HTTP 요청 메시지가 서버로 전달된다.
 4. WAS는 해당 텍스트 메시지를 파싱하여 `HttpServletRequest`와 `HttpServletResponse` 객체를 새로 생성한다.
 5. URL 매핑 정보를 바탕으로 적절한 서블릿의 `service()` 메서드를 호출하며 두 객체를 파라미터로 넘겨준다.
@@ -187,6 +187,7 @@ request.getHeaderNames().asIterator()
 
 #### 공통점
 - 전달되는 데이터의 형식(Key-Value 파라미터 쌍) 자체가 동일하기 때문에, **서버(서블릿) 입장에서는 동일한 방식으로 데이터를 조회**할 수 있다.
+  - 서버에서는 이를 **요청 파라미터를 조회한다**고 표현한다.
 - 참고로, **파라미터의 키는 대소문자를 구분**한다. (`username`과 `userName`은 다른 파라미터이다.)
 
 #### 파라미터 조회 메서드
@@ -244,3 +245,88 @@ HelloData helloData = objectMapper.readValue(messageBody, HelloData.class);
 - **파싱되어 분리된 데이터(값)들을 깡통(새로 생성된) 객체의 적절한 필드에 주입하는 과정**이다.
 
 ---
+
+## HttpServletResponse
+### 의의 (HTTP 응답 메시지 자동 생성)
+- 개발자가 직접 HTTP 응답 메시지를 만드는 것은 번거롭다.
+- 이에 서블릿에서는 **`HttpServletResponse` 객체에 필요한 값들을 넣으면 규격에 맞는 HTTP 응답 메시지가 자동으로 생성**되도록 만들었다.  
+
+### 제공하는 주요 기능
+```java
+// 상태 코드 지정
+response.setStatus(HttpServletResponse.SC_OK);  // 200 OK
+
+// 헤더 값 지정
+response.setHeader("Content-Type", "text/plain;charset=utf-8");
+response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+response.setHeader("Pragma", "no-cache");
+response.setHeader("my-header", "hello");
+
+// 메시지 바디 작성
+PrintWriter writer = response.getWriter();
+writer.println("안녕하세요~");
+```
+
+- 헤더 값을 지정하는 과정에서 매번 Key-Value를 지정하는 것이 불편하기 때문에, 서블릿은 편의 기능 또한 제공한다.
+
+#### 편의 기능
+```java
+// 헤더 설정 편의: response.setHeader("Content-Type", "text/plain;charset=utf-8");
+response.setContentType("text/plain");
+response.setCharacterEncoding("utf-8");
+
+// 쿠키 편의: response.setHeader("Set-Cookie", "myCookie=good;Max-Age=600");
+Cookie cookie = new Cookie("myCookie", "good");
+cookie.setMaxAge(600);  // 600초
+response.addCookie(cookie);
+
+// 리다이렉트 편의 
+// response.setStatus(HttpServletResponse.SC_FOUND);    // 302 Found
+// response.setHeader("Location", "/basic/hello-form.html");
+response.sendRedirect("/basic/hello-form.html");
+```
+
+### HTTP 응답 데이터 전송 방식
+> **서버에서 클라이언트로 데이터를 전달하는 방법으로, 주로 아래와 같은 3가지 포맷을 활용**한다.
+
+#### 단순 텍스트 응답 (`text/plain`)
+```java
+response.setContentType("text/plain");
+response.setCharacterEncoding("utf-8");
+
+PrintWriter writer = response.getWriter();
+writer.println("ok");
+```
+- **단순한 텍스트 데이터를 보낼 때 사용**한다.
+- 별도 설정이 없어도 브라우저가 읽을 수는 있지만, 명확한 데이터 타입을 알리고 한글 깨짐을 방지하기 위해 `text/plain`과 `utf-8` 인코딩 설정을 명시하는 것이 표준이다.
+
+#### HTML 응답 (`text/html`)
+```java
+response.setContentType("text/html");
+response.setCharacterEncoding("utf-8");
+
+PrintWriter writer = response.getWriter();
+writer.println("<html>");
+writer.println("<body>");
+writer.println("<div>안녕?</div>");
+writer.println("</body>");
+writer.println("</html>");
+```
+- **동적으로 HTML 코드를 생성하여 브라우저에 렌더링할 때 사용**한다.
+- 브라우저가 해당 응답을 HTML로 인식하고 화면을 그릴 수 있도록 반드시 `text/html`로 지정해야 한다.
+
+#### JSON 응답 (`application/json`)
+```java
+response.setContentType("application/json");
+response.setCharacterEncoding("utf-8");
+
+HelloData helloData = new HelloData();
+helloData.setUsername("민석");
+helloData.setAge(20);
+
+String result = objectMapper.writeValueAsString(helloData); // 직렬화
+response.getWriter().write(result);
+```
+- **클라이언트가 전송한 데이터를 역직렬화(JSON → Java Object)해서 사용했듯, 클라이언트에 데이터를 전송할 때는 직렬화(Java Object → JSON)해야 한다.**
+  - 역직렬화: `objectMapper.readValue(String, Class<T>)`
+  - 직렬화: `objectMapper.writeValueAsString(Object)`
