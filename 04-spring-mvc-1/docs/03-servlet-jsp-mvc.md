@@ -25,6 +25,43 @@
 
 ### JSP로 회원가입 웹 앱 만들기
 #### JSP(JavaServer Pages) 환경 설정과 라이브러리
+> **스프링 부트 환경에서 JSP를 사용하려면 `build.gradle`에 관련 라이브러리를 추가해야 한다.**
+
+```java
+//JSP 추가 시작
+implementation 'org.apache.tomcat.embed:tomcat-embed-jasper'    // JSP to Servlet
+implementation 'jakarta.servlet:jakarta.servlet-api' // JSP 컴파일러가 참조해야 하는 서블릿 규격
+implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api' // JSTL(JSP Standard Tag Library) 규격
+implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl' // JSTL(JSP Standard Tag Library) 규격
+//JSP 추가 끝
+```
+
+- 서블릿 실습 때는 스프링 부트 웹 스타터에 이미 서블릿 API가 내장되어 있어 별도로 추가할 필요가 없었지만, JSP는 다르다.
+- **스프링 부트는 기본적으로 JSP 구동 엔진을 지원하지 않기 때문에, 관련 라이브러리를 별도로 추가**해야 한다.
+- **이때 내장 톰캣은 내부적으로 JSP를 서블릿으로 변환한 후에 컴파일한다**는 사실을 기억해두자.
+
 #### JSP 파일의 위치와 WAR 패키징
+> **JSP 파일은 반드시 `src/main/webapp` 하위에 생성해야 한다.**
+
+- **자바 웹 표준(WAR 패키징)에서 클라이언트가 리소스를 얻기 위해 접근할 수 있는 최상위 디렉토리**가 해당 경로(`src/main/webapp`)이기 때문이다.
+- 참고로 `WEB-INF`는 내부의 특수한 보안 디렉토리로, 클라이언트의 접근을 허용하지 않는 리소스를 저장하는 공간이다.
+- 현재 실습에서는 클라이언트가 브라우저에 JSP 경로를 직접 입력하여 접근해야 하므로, `WEB-INF`가 아닌 `webapp`에 파일을 위치시켰다.
+
 #### JSP 기본 문법과 동작 원리
+> **JSP는 HTML 문서 형태를 띠고 있지만, 실행 시점에는 WAS에 의해 서블릿(`.java`)으로 변환된 후 컴파일되어 실행된다.**
+
+- **초기 선언부:**
+  - JSP 파일의 경우, 문서 최상단에 `<%@ page contentType="text/html;charset=UTF-8" language="java" %>`를 명시해야 한다. (**문서 타입과 인코딩 규격 명시**)
+- **스크립틀릿 (`<% %>`):**
+  - 비즈니스 로직(변수 선언, DB 접근, 조건문 등)을 처리하기 위한 자바 실행 구문을 입력하는 영역이다.
+- **표현식 (`<%= =>`):**
+  - 변수나 메서드의 반환값을 HTML 화면에 직접 출력하기 위한 영역이다.
+  - 컴파일 시 내부적으로 `out.print(값);` 형태의 코드로 자동 변환된다.
+- **내장 객체 활용:**
+  - JSP가 서블릿 코드로 변환될 때 `request`, `response`, `out` 등의 객체가 내부 메서드에 자동으로 선언되므로, 별도의 생성 없이 즉시 사용할 수 있다.
+
 #### JSP 구현의 한계와 MVC 패턴의 필요성
+> **HTML 뼈대를 유지하면서 필요한 부분만 자바 코드를 삽입하므로 화면(View) 렌더링 작성은 편리해졌지만, 여전히 하나의 파일에서 비즈니스 로직과 화면 렌더링을 처리하고 있어 유지보수가 어렵다**는 한계가 남아 있다.
+
+- 이에 **비즈니스 로직은 서블릿에, 화면 렌더링은 JSP에 맡기는 MVC 패턴이 등장**하게 되었다.
+- 물론 비즈니스 로직을 서블릿으로 완전히 분리하더라도, **화면 렌더링을 위한 최소한의 자바 코드(`<%= member.getAge() %>`)는 불가피하게 남게 된다.**
