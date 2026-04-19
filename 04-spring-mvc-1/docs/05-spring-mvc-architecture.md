@@ -96,8 +96,81 @@ protected void render(ModelAndView mv, HttpServletRequest request, HttpServletRe
 
 ### 스프링 MVC의 확장성
 - **스프링 MVC는 대부분의 기능을 인터페이스로 제공하고, 스프링 컨테이너를 통해 (구성 영역으로부터) 의존관계를 주입할 수 있으므로, 단순히 구현체를 갈아끼우는 것만으로도 얼마든지 기능을 확장할 수 있다.**
-  - `DispatcherServlet`의 메인 코드를 수정할 필요가 없다.
+  - 즉, `DispatcherServlet`의 메인 코드를 수정할 필요가 없다.
 - 하지만 스프링 MVC 자체로도 이미 완성도가 매우 높기 때문에, 제공하는 기능을 직접 확장할 일(`MyHandlerMapping`, `MyViewResolver`, ...)은 사실상 없다.
 - 그럼에도 우리는 문제 해결 역량을 향상시키고자, 수 시간에 걸쳐 핵심 동작 원리를 이해하는 과정을 거친 것이다.
+
+---
+
+## 핸들러 매핑과 핸들러 어댑터
+### 강의 목표
+- 어노테이션 기반의 컨트롤러(`@Controller`)가 등장하기 전에 사용되던 **과거의 방식(`Controller`, `HttpRequestHandler` 인터페이스)을 통해 스프링 MVC의 매핑과 어댑터 동작 원리를 이해**한다.
+```java
+import org.springframework.web.servlet.mvc.Controller;
+import org.springframework.web.HttpRequestHandler;
+
+public interface Controller {
+    ModelAndView handleRequest(HttpServletRequest request, HttpServletResponse response) throws Exception;
+}
+
+public interface HttpRequestHandler {
+    void handleRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException;
+}
+```
+
+### 스프링 부트의 자동 등록
+- 스프링 부트는 **구동 시점에 웹앱 개발에 필요한 대부분의 `HandlerMapping`과 `HandlerAdapter` 구현체들을 자동으로 스프링 빈으로 등록**해 둔다.
+- 즉, 개발자가 해당 인터페이스를 직접 구현할 일은 사실상 없기 때문에 **구현체들의 우선순위와 핵심 동작 원리를 이해하는 것이 중요**하다.
+
+### 주요 HandlerMapping (우선순위 순)
+> **클라이언트의 요청 URL과 매핑되는 핸들러를 찾아주는 역할을 한다.**
+
+#### 1. RequestMappingHandlerMapping
+- **스프링 컨테이너(`ApplicationContext`)에 등록된 `@Controller` 빈들을 탐색**하여, **`@RequestMapping`이 붙은 메서드들의 메타 정보를 추출**한다.
+- **해당 정보를 `(매핑 URL, HandlerMethod)`의 Key-Value 형태로 매핑 테이블에 미리 등록**해 둔다.
+- 클라이언트의 요청이 들어오면, **요청 URL과 매핑되는 `HandlerMethod`를 찾아 프론트 컨트롤러에 반환**한다.
+
+#### 2. BeanNameUrlHandlerMapping
+- 스프링 컨테이너에 등록된 모든 빈 중에서, **이름이 요청 URL과 정확히 일치하는 빈**을 찾아 핸들러로 반환한다.
+- 예) `/springmvc/old-controller`라는 이름으로 등록된 빈(`@Component("/springmvc/old-controller")`)을 찾을 때 사용
+
+### 주요 HandlerAdapter (우선순위 순)
+> **`HandlerMapping`을 통해 찾아낸 핸들러를 처리(대신 실행)해주는 역할을 한다.**
+
+#### 1. RequestMappingHandlerAdapter
+- 어노테이션 기반의 핸들러(`HandlerMethod`)를 지원(`supports`)하는 어댑터이다.
+
+#### 2. HttpRequestHandlerAdapter
+```java
+@Override
+public boolean supports(Object handler) {
+    return (handler instanceof HttpRequestHandler);
+}
+
+@Override
+public ModelAndView handle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+
+    ((HttpRequestHandler) handler).handleRequest(request, response);
+    return null;
+}
+```
+- 서블릿과 가장 유사한 형태의 핸들러인 `HttpRequestHandler`를 지원하는 어댑터이다.
+
+#### 3. SimpleControllerHandlerAdapter
+- `Controller` 인터페이스를 구현한 핸들러를 지원하는 어댑터이다.
+
+### 매핑과 어댑팅 예시
+#### Controller 인터페이스 방식
+> **`@Component("/springmvc/old-controller")`로 등록된 `OldController`를 호출하는 경우**
+
+1. **핸들러 매핑 조회:**
+   - `RequestMappingHandlerMapping` 실행 → 매핑 정보 없음
+   - `BeanNameUrlHandlerMapping` 실행 → 빈 이름이 `/springmvc/old-controller`인 핸들러를 반환  
+2. **핸들러 어댑터 조회:**
+   - `RequestMappingHandlerAdapter`의 `supports()` → `false` (지원하지 않음)
+   - `HttpRequestHandlerAdapter`의 `supports()` → `false`
+   - `SimpleControllerHandlerAdapter`의 `supports()` → `true` (`OldController`가 `Controller`를 구현한 핸들러이기 때문)
+3. **실행:**
+   - 해당 어댑터를 통해 핸들러를 실행(`handle`)하고, 결과 값을 어댑팅(`ModelAndView` 객체로 변환)하여 프론트 컨트롤러에 반환
 
 ---
