@@ -22,7 +22,7 @@
   - **상속 계층:** `DispatcherServlet` → `FrameworkServlet` → `HttpServletBean` → `HttpServlet`
 - **스프링 부트 구동 시 `@ServletComponentScan`에 의해 서블릿 컨테이너에 등록**되며, **기본적으로 모든 경로(`urlPatterns = "/"`)에 대해 매핑되어 동작**한다.
   - 참고로 서블릿 매핑 규칙상, 경로는 구체적일수록 우선순위가 높다.
-  - 즉, 더 구체적인 `urlPattern`을 가진 서블릿이 별도로 존재한다면, 해당 요청은 `DispatchServlet` 대신 해당 서블릿이 가로채 처리하게 된다.
+  - 즉, 더 구체적인 `urlPattern`을 가진 서블릿이 별도로 존재한다면, 해당 요청은 `DispatcherServlet` 대신 해당 서블릿이 가로채 처리하게 된다.
 
 ### 스프링 MVC에서의 요청 처리 프로세스
 1. 클라이언트의 HTTP 요청이 들어오면 `HttpServlet`이 제공하는 `service()`가 호출된다.
@@ -30,7 +30,7 @@
 3. 이때 내부적으로 `doService()`가 실행되는데, 실제로 호출되는 메서드는 자식 클래스인 `DispatcherServlet`에서 오버라이딩한 `doService()`이다. 
 4. 그 과정에서 호출되는 **`doDispatch()`의 동작 방식이 우리가 앞서 구축했던 MVC 프레임워크(V5)의 동작 방식과 사실상 동일**하다.
 
-### doDispatch()의 동작 방식
+### doDispatch()의 동작 방식 (★)
 ![스프링 MVC 구조](./images/spring-mvc-architecture.png)
 
 1. **핸들러 조회:**
@@ -39,7 +39,7 @@
     - 핸들러를 찾은 다음에는, 해당 핸들러를 처리할 수 있는(`supports`) 핸들러 어댑터를 찾는다.
 3. **핸들러 실행 및 결과 반환:**
     - 핸들러 어댑터까지 찾았다면, 해당 어댑터를 통해 핸들러를 실행(`handle`)하고, 결과 값을 어댑팅(`ModelAndView` 객체로 변환)하여 프론트 컨트롤러에 반환한다.
-4. **뷰 렌더링:**
+4. **뷰 렌더링 (JSP의 경우):**
     - 프론트 컨트롤러가 뷰의 논리적 이름을 `ViewResolver`에 전달하면, `ViewResolver`는 물리적 위치 정보가 담긴 `View` 객체를 반환한다.
     - 이후, 해당 `View` 객체를 통해 뷰 템플릿 파일로 이동(포워딩)하여, 화면을 렌더링한다. (서블릿 응답 객체의 메시지 바디를 채운다.)
 5. **후처리 및 응답 메시지 반환:**
@@ -47,8 +47,6 @@
     - 최종적으로 WAS가 서블릿 응답 객체를 참조해 HTTP 응답 메시지를 생성한 후, 클라이언트에게 반환한다.
 
 #### 간략화된 코드
-> **실제로는 이 과정 전후로 공통 로직을 처리하는 인터셉터(`applyPreHandle`, `applyPostHandle` 등)나 예외처리 등의 로직이 함께 동작**한다.
-
 ```java
 protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
     
@@ -91,8 +89,8 @@ protected void render(ModelAndView mv, HttpServletRequest request, HttpServletRe
     view.render(mv.getModelInternal(), request, response);
 }
 ```
-
 - 핸들러 어댑터로 핸들러를 실행하는 부분을 보면 알겠지만, **기본적으로 `DispatcherServlet`은 어댑터에게 `ModelAndView` 타입을 요구**한다.
+- **실제로는 위 과정 전후로 공통 로직을 처리하는 인터셉터(`applyPreHandle`, `applyPostHandle` 등)나 예외처리 등의 로직이 함께 동작**한다.
 
 ### 스프링 MVC의 확장성
 - **스프링 MVC는 대부분의 기능을 인터페이스로 제공하고, 스프링 컨테이너를 통해 (구성 영역으로부터) 의존관계를 주입할 수 있으므로, 단순히 구현체를 갈아끼우는 것만으로도 얼마든지 기능을 확장할 수 있다.**
@@ -194,7 +192,7 @@ public ModelAndView handle(HttpServletRequest request, HttpServletResponse respo
   - `BeanNameViewResolver`가 반환하는 빈 객체를 커스텀 뷰라고 한다.
   - **템플릿 엔진 뷰(`ThymeleafView`, `InternalResourceView`)와 달리 별도의 템플릿 파일을 보유하고 있지 않으며, 자바 코드로 직접 렌더링을 수행한다.**
 
-#### 2. 외부 템플릿 엔진의 ViewResolver (`ThymeleafViewResolver` 등)
+#### 2. 외부 템플릿 엔진의 ViewResolver (ThymeleafViewResolver 등)
 - 타임리프 등 **외부 템플릿 엔진 라이브러리를 추가했을 때 자동으로 등록되는 전용 뷰 리졸버**이다.
 - 뷰의 논리적 이름을 해당 템플릿 엔진의 기본 경로(예: `classpath:/templates/`)와 확장자(`.html`)로 조합한다.
 - 이후, **해당 템플릿 엔진의 문법을 해석하고 화면을 렌더링할 수 있는 전용 뷰 객체**(`ThymeleafView` 등)를 반환한다.
@@ -222,3 +220,83 @@ public ModelAndView handle(HttpServletRequest request, HttpServletResponse respo
 - JSP와 달리, **템플릿 엔진 라이브러리가 `View` 객체 내부에서 템플릿 파일을 직접 읽고 렌더링하는 구조**이다.
 
 ---
+
+## 스프링 MVC - 어노테이션 기반 컨트롤러
+### 개요
+- **스프링 MVC에서는 어노테이션 기반(`@Controller`, `@RequestMapping`)의 컨트롤러 방식을 채택**하고 있다.
+- 앞서 MVC 프레임워크를 점진적으로 개선해 나갔던 것처럼, 이번 실습에서는 스프링 MVC의 어노테이션 컨트롤러를 점진적으로 개선해볼 것이다.
+
+### @Controller의 역할
+#### 1. 스프링 빈 등록
+- **`@Controller` 어노테이션 내부에 `@Component`가 포함되어 있으므로, 컴포넌트 스캔 대상이 되어 자동으로 스프링 컨테이너에 빈으로 등록**된다.
+
+#### 2. 핸들러 매핑의 타겟 지정
+- **스프링 MVC의 `RequestMappingHandlerMapping`은 스프링 빈 중에서 `@Controller`나 `@RequestMapping`이 클래스 레벨에 붙어 있는 빈을 찾는다.**
+- **이후 해당 빈 내부에서 `@RequestMapping`이 붙은 메서드들의 메타 정보(`HandlerMethod`)를 추출하여 매핑 테이블에 등록**해 둔다.
+
+### 점진적 개선 과정 (V1 → V3)
+#### V1. 어노테이션 기반의 컨트롤러 도입
+- 어노테이션 기반으로 컨트롤러를 전환한 초기 버전이다.
+- **한계점:**
+  - 과거 `Controller` 인터페이스 시절처럼 **하나의 컨트롤러 클래스에서 하나의 URL 요청만 처리하는 구조여서 비효율적**이다.
+  - 파라미터를 꺼내기 위해 여전히 **서블릿에 종속적**인 코드(`HttpServletRequest`, `HttpServletResponse`)를 사용한다.
+  - **항상 `ModelAndView` 객체를 반환**해야 해서 번거롭다.
+
+#### V2. 컨트롤러 통합
+- `@RequestMapping`이 메서드 레벨에 적용된다는 점에 착안하여, **관련 메서드(회원 등록, 조회, 수정 등)들을 하나의 컨트롤러 클래스에서 관리하는 방식**이다.
+- **클래스 레벨의 URL 접두사(Prefix) 적용:**
+  - 단순히 관련 메서드들을 하나의 컨트롤러 클래스에 집어넣기만 하면, 매핑 URL에서 불필요한 중복이 발생한다.
+  - 이에, 매핑 URL에서 중복되는 상위 경로(예: `/springmvc/v2/members`)를 클래스 레벨의 `@RequestMapping`으로 끌어올려 중복을 제거할 수 있다.
+- **한계점:**
+  - **여전히 서블릿 종속적이며, `ModelAndView` 반환의 번거로움**이 남아 있다.
+
+#### V3. 실용적인 방식 (서블릿 종속성 제거, 뷰의 논리적 이름 반환, HTTP 메서드 방식 분리)
+- **서블릿 종속성 제거 (`@RequestParam`):**
+  - 무겁고 종속적인 `HttpServletRequest` 대신 `@RequestParam` 어노테이션을 사용하여, 요청 파라미터(GET 쿼리 파라미터, POST Form 데이터)를 메서드의 매개변수로 직접 받을 수 있다.
+- **뷰의 논리적 이름 반환:**
+  - MVC 프레임워크의 점진적 개선 중 거쳤던 과정(`V4`)이다.
+  - `ModelAndView` 객체 대신 뷰의 논리적 이름(`String`)을 반환한다.
+  - 이때 모델을 어떻게 처리할 것인지 고민해야 하는데, **MVC 프레임워크에서 깡통 모델(`HashMap<String, Object> model`)을 주입했던 것과 달리 스프링 MVC에서는 주어지는 `Model` 인터페이스(`springframework.ui.Model`)를 사용**하기만 하면 된다.
+- **HTTP 메서드 방식 분리:**
+  - 단순히 URL 경로만으로 매핑하는 것을 넘어, **해당 요청이 목적에 맞는 HTTP 메서드(GET, POST 등)로 들어왔는지 명확하게 제약을 걸어주는 것이 좋은 API 설계**이다.
+  - 좋은 API 설계를 위해 `@RequestMapping`에서는 `method` 옵션을 제공하지만, 보다 축약된 버전인 **`@GetMapping`, `@PostMapping` 등이 일반적으로 사용**된다.
+  - **단순 조회는 GET, 데이터 변경은 POST로 하는 등 코드 레벨에서 HTTP 메서드를 명시하여, 의도치 않은 부작용(Side Effect)을 사전에 방지**할 수 있다.
+
+#### 최종적인 코드
+```java
+import org.springframework.ui.Model;
+
+@Controller
+@RequestMapping("/springmvc/v3/members")
+public class SpringMemberControllerV3 {
+
+    private final MemberRepository memberRepository = MemberRepository.getInstance();
+
+//    @RequestMapping(value = "/new-form", method = RequestMethod.GET)
+    @GetMapping("/new-form")
+    public String newForm() {
+        return "new-form";  // 뷰의 논리적 이름만 반환 (뷰 리졸버가 prefix, suffix 조립해서 실제 물리적 경로가 담긴 View 객체 생성)
+    }
+    
+    @PostMapping("/save")
+    public String save(
+            @RequestParam("username") String username,
+            @RequestParam("age") int age,
+            Model model) {
+
+        Member member = new Member(username, age);
+        memberRepository.save(member);
+
+        model.addAttribute("member", member);
+        return "save-result";
+    }
+    
+    @GetMapping
+    public String members(Model model) {
+        List<Member> members = memberRepository.findAll();
+
+        model.addAttribute("members", members);
+        return "members";
+    }
+}
+```
