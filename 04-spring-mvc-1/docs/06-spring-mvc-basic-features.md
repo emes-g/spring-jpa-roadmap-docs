@@ -77,3 +77,57 @@
 
 ---
 
+## 요청 매핑
+### 요청 매핑 개요
+- **클라이언트의 요청이 들어왔을 때, 해당 요청을 처리할 컨트롤러(핸들러)의 메서드와 연결해 주는 과정**이다.
+- **`@RequestMapping`은 단순히 URL 경로뿐만 아니라** HTTP 메서드, 파라미터, 헤더, 미디어 타입 등 **다양한 조건을 조합하여 매핑**할 수 있다.
+- 배열을 사용하여 여러 URL을 하나의 핸들러 메서드에 동시에 매핑하는 것도 가능하다.
+  - 예) `@RequestMapping({"/hello-basic", "/hello-go"})`
+
+### 경로 변수 (@PathVariable)
+- **URL 경로의 일부를 템플릿화(변수화)하여, 해당 위치에 들어오는 값을 편리하게 조회**할 수 있는 기능이다.
+- **최근 웹 API(RESTful API) 설계에서는 식별자를 쿼리 파라미터 대신 URL 경로에 직접 넣는 방식을 사용하는데, 이때 `@PathVariable`이 사용**된다.
+  - 예) `/users/1` (1번 사용자 조회) → `@GetMapping("/users/{userId}")`
+- 쿼리 파라미터와 마찬가지로 여러 개의 경로 변수를 한 번에 사용하는 것도 가능하다.
+  - 예) `/users/{userId}/orders/{orderId}`
+
+### 특정 조건 매핑 (사용도 낮음)
+> **URL 경로와 HTTP 메서드 외에도, 특정 조건이 만족되어야만 매핑되도록 제약을 걸 수 있다.**
+
+#### 파라미터 조건 매핑
+- 특정 쿼리 파라미터가 존재해야만 호출된다.
+- 예) `params="mode=debug"`
+
+#### 헤더 조건 매핑
+- 특정 요청 헤더가 존재해야만 호출된다.
+- 예) `headers="mode=debug"`
+
+### 미디어 타입 조건 매핑
+> **HTTP 요청 헤더의 Content-Type과 Accept 값을 기준으로 매핑 조건을 제한한다.**
+
+#### consumes
+- **클라이언트가 보내는 페이로드(메시지 바디)의 데이터 타입을 제한할 때 사용**한다.
+- **클라이언트의 HTTP 요청 헤더 중 `Content-Type`과 일치해야 매핑**된다.
+- 예) `consumes = "application/json"`으로 설정하면, 클라이언트가 JSON 형식의 데이터를 보낼 때만 해당 핸들러가 호출된다.
+
+#### produces
+- **특정 미디어 타입을 선호하는 클라이언트에게 응답할 때 사용**한다.
+- **클라이언트의 HTTP 요청 헤더 중 `Accept`와 일치해야 매핑**된다.
+    - 즉, 클라이언트가 선호하는(응답받길 원하는) 미디어 타입을 지원하는 경우에만 응답이 가능하다.
+- 예) `produces = "text/html"`로 설정하면, 클라이언트가 `text/html`을 선호한다고 보낸 경우에만 해당 핸들러가 매핑된다.
+- **서버는 응답 메시지 헤더에 `Content-Type = {produces 속성 값}` 필드를 추가하여 전송**한다.
+- **예시 상세:**
+  ```java
+  // @RestController
+  @PostMapping(value = "/mapping-produce", produces = "text/html")
+  public String mappingProduces() {
+    log.info("mappingProduces");
+    return "ok";
+  }
+  ```
+  - 해당 핸들러가 호출됐다고 가정하자.
+  - `produces = "text/html"`로 설정되어 있기 때문에, 응답 메시지 헤더에 `Content-Type = "text/html"` 필드가 추가될 것이다.
+  - 그렇다고 해서, `@RestController`에 의해 작성된 페이로드 데이터(`ok`라는 문자열)가 정말 `<html>ok</html>`과 같이 HTML 태그로 변환되는 것은 아니다.
+  - 단순히 페이로드 데이터를 클라이언트가 HTML 문서로 렌더링하면 된다는 의미이다.
+
+---
