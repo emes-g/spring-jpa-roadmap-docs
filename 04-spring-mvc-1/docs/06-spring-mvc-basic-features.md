@@ -131,3 +131,77 @@
   - 단순히 페이로드 데이터를 클라이언트가 HTML 문서로 렌더링하면 된다는 의미이다.
 
 ---
+
+## HTTP 요청 - 기본 및 헤더 조회
+### 어노테이션 기반 컨트롤러의 유연성
+- 스프링의 **어노테이션 기반 컨트롤러는 파라미터가 인터페이스로 정형화되어 있지 않다.**
+- 따라서 **스프링이 지원하는 임의의 객체나 어노테이션을 파라미터로 선언하기만 하면 스프링이 알아서 값을 채워 넣어준다.**
+- 즉, **필요한 것을 선언하면 스프링이 주입해 준다.**
+
+### 주요 지원 파라미터
+```java
+@RequestMapping("/headers")
+public String headers(HttpServletRequest request,
+                      HttpServletResponse response,
+                      HttpMethod method,
+                      Locale locale,
+                      @RequestHeader MultiValueMap<@NonNull String, String> headerMap,
+                      @RequestHeader String host,
+                      @CookieValue(value = "myCookie", required = false) String cookie
+) {
+    // 로그 출력
+    return "ok";
+}
+```
+- **HttpServletRequest / Response**: 서블릿 표준 요청/응답 객체
+- **HttpMethod**: 현재 요청의 HTTP 메서드 정보
+- **Locale**: 언어 설정을 포함한 로케일 정보 
+- **@RequestHeader MultiValueMap**:
+  - 모든 HTTP 헤더 조회
+  - 하나의 키에 여러 값이 있을 수 있기 때문에 `MultiValueMap`을 사용
+- **@RequestHeader**: 특정 HTTP 헤더 조회
+- **@CookieValue**: 
+  - 특정 쿠키 정보 조회
+  - 필수 여부(`required`)나 기본값(`defaultValue`)과 같은 설정 지원
+
+### @ModelAttribute와 BindingResult
+#### @ModelAttribute (객체 바인딩)
+- **클라이언트가 보낸 여러 요청 파라미터를 해당 객체의 필드로 자동으로 매핑(바인딩)해 주는 어노테이션**이다.
+- 이름에서 알 수 있듯, 단순히 객체를 생성하고 값을 채우는 것을 넘어 **해당 객체를 자동으로 모델(Model)에 담아주기 때문에 뷰 템플릿 엔진에서 바로 꺼내 쓸 수 있다.**
+
+#### @ModelAttribute 장점
+```java
+@Getter
+@Setter
+public class Member {
+    private String name;
+    private int age;
+}
+
+@RestController
+public class MemberController {
+    
+    @PostMapping("/members")
+    // public String addMember(@RequestParam String name, @RequestParam int age) {
+    public String addMember(@ModelAttribute Member member) {
+        // 출력
+        return "ok";
+    }
+}
+```
+1. **OCP 준수:**
+   - `@ModelAttribute`를 사용하지 않고, `@RequestParam`을 통해 일일이 사용자의 요청을 받아들인다고 생각해보자.
+   - 만약 도메인 객체에 `grade`라는 새로운 필드 변수가 추가된다면, 컨트롤러의 핸들러 메서드 파라미터 역시 수정해야만 한다.
+   - 하지만 `@ModelAttribute`를 사용하면 도메인 객체에 필드만 추가할 뿐, 컨트롤러를 수정할 필요가 없다.
+2. **개발자 편의성:**
+   - 매개변수의 순서에 의존하지 않고 개발할 수 있다.
+
+#### BindingResult (검증 및 오류 정보)
+- **`@ModelAttribute` 등으로 데이터를 바인딩할 때 발생한 오류 정보를 보관하는 객체**이다.
+- 보통 숫자 타입 필드에 문자가 들어오는 등의 바인딩 에러나 입력값 검증(Validation) 실패 시 활용한다.
+- **반드시 검증 대상 객체(예: `@ModelAttribute`가 붙은 파라미터) 바로 다음에 위치해야 한다.**
+  - 참고로 대상 객체가 여러 개라면(파라미터로 여러 개의 객체를 받는다면), 각각의 대상 바로 뒤에 개별 선언해야 한다.
+- **`BindingResult` 객체를 활용하면 컨트롤러에서 직접 오류를 처리**할 수 있게 된다.
+  - 즉, 예외를 밖으로 던지지 않아도 된다.
+
+---
