@@ -205,3 +205,191 @@ public class MemberController {
   - 즉, 예외를 밖으로 던지지 않아도 된다.
 
 ---
+
+## 클라이언트에서 서버로 데이터를 전달하는 방법
+### 개요
+#### 요청 파라미터 방식
+- GET 방식의 쿼리 파라미터나 POST 방식의 HTML Form을 의미한다.
+- 전달되는 데이터의 형식(Key-Value 파라미터 쌍)이 동일하기 때문에, **서버 입장에서는 동일한 방식(요청 파라미터 방식)으로 데이터를 조회**할 수 있다.
+- **GET 방식의 쿼리 파라미터:**
+  - URL의 쿼리 스트링을 통해 데이터를 전송하는 방식으로, HTTP 메시지 바디를 사용하지 않는다.
+- **POST 방식의 HTML Form:**
+  - HTML Form 태그를 사용하는 방식으로, 데이터를 HTTP 메시지 바디에 담아 전달한다.
+  - 메시지 바디를 사용하기 때문에, `Content-Type` 값을 필수적으로 지정해야 한다. (`Content-Type: application/x-www-form-urlencoded`)
+- 참고로, 파라미터의 키는 대소문자를 구분한다. (즉, `userName`과 `username`은 다르다.)
+
+#### HTTP API
+- **순수 데이터를 HTTP 메시지 바디에 담아 전달하는 방식**으로, 다양한 시스템 간의 통신에서 활용된다.
+- 여러 방식(TEXT, XML, JSON, ...)이 있지만, 그 중에서도 주로 JSON이 활용된다.
+
+### @RequestParam을 통한 요청 파라미터 조회
+#### V1. 서블릿 기반 방식
+```java
+// @Controller
+@RequestMapping("/request-param-v1")
+public void requestParamV1(HttpServletRequest request, HttpServletResponse response) throws IOException {
+
+    String username = request.getParameter("username");
+    int age = Integer.parseInt(request.getParameter("age"));
+    log.info("username={}, age={}", username, age);
+
+    response.getWriter().write("ok");
+}
+```
+- 과거 서블릿 시절과 동일하게 `HttpServletRequest`를 통해 파라미터를 조회하는 방식이다.
+- 참고로 **`@Controller`더라도 반환값이 `void`면, 뷰 리졸버가 호출되지 않고 메시지 바디에 데이터가 전달**된다.
+
+#### V2. @RequestParam 어노테이션 도입
+- 스프링이 제공하는 `@RequestParam`을 사용하여 요청 파라미터를 메서드의 매개변수에 직접 바인딩한다.
+  - 예) `@RequestParam("username") String memberName`
+- 그리고 앞서, `@RestController`가 `@Controller`와 `@ResponseBody`의 조합이라고 했던 것을 기억해 보자.
+  - 이에 기반하자면, **뷰의 논리적 이름을 반환하는 방식과 데이터를 응답 메시지에 바로 작성하는 방식을 혼용하고 싶은 경우**에는 어떻게 해야 할까?
+  - 결론만 말하자면 **클래스 레벨은 `@Controller`로 해두고, 응답 메시지에 바로 작성하고 싶은 메서드 핸들러에만 `@ResponseBody`를 등록**하면 된다. 
+    
+#### V3. 요청 파라미터명 생략
+- HTTP 요청 파라미터 이름과 컨트롤러 메서드의 변수 이름이 완전히 일치하면 `@RequestParam`의 괄호와 이름을 생략할 수 있다.
+  - 예) `@RequestParam String username`
+
+#### V4. 어노테이션 생략
+- 요청 파라미터명뿐만 아니라 `@RequestParam`이라는 어노테이션 자체도 생략할 수 있다.
+- 하지만 해당 파라미터가 HTTP 요청 데이터를 읽어온다는 사실을 명확히 하기 위해 V3 방식처럼 **`@RequestParam`을 명시하는 것이 유지보수 관점에서 더 좋다.**
+
+#### 파라미터 필수 여부 설정 (required 속성)
+- 기본적으로 `@RequestParam`은 `required` 속성 값이 `true`로 설정되어 있다.
+- 따라서 **`@RequestParam`이 설정된 파라미터를 누락할 경우, 클라이언트 오류인 `400 Bad Request` 예외가 발생**한다.
+
+#### 기본값 설정 (defaultValue 속성)
+- `@RequestParam`에서는 값이 누락될 경우에 대비해, 기본값을 설정할 수 있다.
+- **`null`과 Primitive 타입:**
+  - 값이 안 들어오면 `null`이 할당되어야 하는데, Primitive 타입 변수에는 `null`을 입력할 수 없어 `500` 에러가 발생한다.
+  - 따라서 Primitive 타입 변수를 Wrapper 클래스로 변경하거나, `defaultValue` 속성을 사용하여 기본값을 지정해야 한다.
+
+#### Map을 이용한 전체 파라미터 조회
+```java
+@ResponseBody
+@RequestMapping("/request-param-multi-map")
+public String requestParamMultiMap(@RequestParam MultiValueMap<String, Object> paramMap) {
+
+    log.info("username={}, age={}", paramMap.get("username"), paramMap.get("age"));
+    return "ok";
+    
+    // username=[kim, choi], age=[18]
+}
+```
+- 요청 파라미터를 단일 변수가 아닌 `Map` 형태로 한 번에 받을 수 있다.
+  - 예) `@RequestParam Map<String, Object> paramMap`
+- 동일한 키에 여러 값이 들어올 수 있는 상황(예: 다중 선택 체크박스)이라면 `MultiValueMap`을 사용해야 한다.
+  - 하지만 실무에서 파라미터 값이 여러 개 들어오는 경우는 흔치 않다.
+
+### @ModelAttribute를 통한 요청 파라미터 조회
+#### @ModelAttribute (객체 바인딩)
+- **클라이언트가 보낸 여러 요청 파라미터를 해당 객체의 필드로 자동으로 매핑(바인딩)해 주는 어노테이션**이다.
+- 이름에서 알 수 있듯, 단순히 객체를 생성하고 값을 채우는 것을 넘어 **해당 객체를 자동으로 모델(Model)에 담아주기 때문에 뷰 템플릿 엔진에서 바로 꺼내 쓸 수 있다.**
+
+#### @Data
+- 클래스 레벨에 선언하는 어노테이션으로, 다음의 어노테이션들을 자동으로 적용해 준다.
+  - `@Getter`, `@Setter`, `@ToString`, `@EqualsAndHashCode`, `@RequiredArgsConstructor`
+- 무분별하게 Setter를 생성하여 객체의 캡슐화를 깨뜨릴 위험이 있기 때문에, **엔티티 등 중요한 핵심 도메인 객체에서는 사용을 지양하고 DTO(데이터 전송 객체) 용도로만 제한적으로 사용**해야 한다.
+
+#### @ModelAttribute의 동작 원리
+1. 스프링이 해당 객체(`HelloData`)를 자동으로 생성한다.
+2. HTTP 요청 파라미터명과 동일한 객체의 프로퍼티(Getter/Setter)를 찾는다.
+3. 해당 객체의 수정자 프로퍼티(Setter)를 호출하여 파라미터 값을 객체에 바인딩한다.
+   - 가령 파라미터명이 `username`이면, `setUsername()` 메서드를 찾아 값을 주입한다.
+
+#### 어노테이션 생략 규칙
+- `@ModelAttribute` 역시 `@RequestParam`과 마찬가지로 컨트롤러 매개변수에서 생략할 수 있다.
+- 스프링은 요청 파라미터 관련 어노테이션이 생략되었을 경우, 다음과 같은 규칙을 적용한다.
+  - **원시 타입, 래퍼 클래스:** `@RequestParam`으로 인식
+  - **사용자 정의 객체:** `@ModelAttribute`로 인식
+  - **스프링 제공 특정 객체:** 요청 파라미터를 바인딩하는 대신, 해당 객체 자체를 파라미터에 주입 (내부적으로 `ArgumentResolver`가 동작하여 처리)
+
+### HTTP API - 단순 텍스트 형식의 메시지 바디 조회
+> **클라이언트가 요청 메시지 바디에 단순 텍스트 데이터를 담아 전달할 때, 해당 데이터를 서버가 어떻게 조회하는지 살펴보자.**
+
+#### V1. 서블릿 기반 방식
+```java
+@PostMapping("/request-body-string-v1")
+public void requestBodyString(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    ServletInputStream inputStream = request.getInputStream();  // 바이트 스트림으로 꺼내서
+    String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8); // 인코딩
+    
+    response.getWriter().write("ok");
+}
+```
+1. `request.getInputStream()`을 호출하여, 컨텐츠를 바이트 스트림으로 꺼낸다
+2. 스프링이 제공하는 `StreamUtils.copyToString()`을 사용하여 바이트 스트림을 문자열로 변환한다.
+    - 이때 인코딩 규격을 명시해야 한다.
+    - 인코딩(바이트 ↔ 문자)할 때 인코딩 규격(기준이 되는 문자표, 주로 `UTF-8`)을 명시하지 않으면 데이터가 깨지기 때문이다.
+
+#### V2. 스트림 객체 주입
+- **서블릿 요청/응답 객체 대신, `InputStream`이나 `Writer`를 파라미터로 직접 주입받아 사용**한다.
+- 앞서 어노테이션 생략 규칙에서 확인했듯, **스프링 제공 객체이므로 내부적으로 `ArgumentResolver`가 동작**한다.
+
+#### V3. HttpEntity 도입
+- **바이트 스트림 추출뿐만 아니라 인코딩 과정까지 스프링이 대신 처리**한다.
+- **파라미터로 `HttpEntity<String>`을 받으면 내부적으로 `HttpMessageConverter`가 동작하여 메시지 바디를 문자로 변환**해 준다.
+- **HttpEntity:**
+  - HTTP 헤더와 메시지 바디를 편리하게 조회/조작할 수 있는 객체이다.
+  - 요청 파라미터 조회(`@RequestParam`, `@ModelAttribute`) 기능과는 완전히 무관하다.
+- **응답 시에도 `HttpEntity`를 반환할 수 있는데, `HttpEntity`를 반환하면 뷰 리졸버를 거치지 않고 응답 메시지 바디에 직접 작성**하게 된다.
+- **ResponseEntity:**
+  - `HttpEntity`를 상속받은 객체로, **메시지 바디뿐만 아니라 HTTP 상태 코드와 응답 헤더를 동적으로 제어**할 수 있다.
+  - **성공 시 기본적으로 `200 OK`를 반환하는 `@ResponseBody`와 달리, `ResponseEntity`는 동적으로 상태 코드를 결정할 수 있으며, 커스텀 헤더를 추가하는 과정 또한 용이하기 때문에 자주 사용**된다.
+
+#### V4. @RequestBody, @ResponseBody 도입
+- **파라미터에 `@RequestBody`를 명시하면 내부적으로 `HttpMessageConverter`가 동작하여 메시지 바디를 직접 읽고 원하는 타입(텍스트의 경우 `String`)으로 변환**해 준다.
+- **응답 시에는 `@ResponseBody`를 사용하여 뷰를 거치지 않고, HTTP 응답 메시지 바디에 결과를 직접 작성**할 수 있다.
+  - 앞서 말했지만, `ResponseEntity` 또한 여러 장점(상태 코드 동적 제어, 커스텀 헤더 추가 용이)을 가지고 있기 때문에 `ResponseEntity`와 `@ResponseBody` 모두 알아둘 필요가 있다.
+
+### HTTP API - JSON 형식의 메시지 바디 조회
+> **클라이언트가 요청 메시지 바디에 JSON 데이터를 담아 전달할 때, 해당 데이터를 서버가 어떻게 조회하는지 살펴보자.**
+
+#### V1. 서블릿 기반 방식 + ObjectMapper
+```java
+@PostMapping("/request-body-json-v1")
+public void requestBodyJsonV1(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    ServletInputStream inputStream = request.getInputStream();  // 바이트 스트림 꺼내서
+    String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8); // 인코딩
+
+    HelloData helloData = objectMapper.readValue(messageBody, HelloData.class); // 역직렬화 (JSON to 객체)
+
+    response.getWriter().write("ok");
+}
+```
+1. `request.getInputStream()`을 호출하여, 컨텐츠를 바이트 스트림으로 꺼낸다
+2. 스프링이 제공하는 `StreamUtils.copyToString()`을 사용하여 바이트 스트림을 문자열로 변환한다.
+3. Jackson 라이브러리의 `ObjectMapper` 클래스를 활용하여 문자열을 객체로 역직렬화(`readValue()`)한다.
+    - 반대로 직렬화할 경우에는 `writeValueAsString()`을 사용하면 된다.
+
+#### V2. @RequestBody + ObjectMapper
+- `@RequestBody`를 통해 메시지 바디를 문자열로 받은 뒤, **개발자가 직접 `ObjectMapper`를 호출하여 객체로 변환**한다. 
+  - 예) `@RequestBody String messageBody`
+- `@RequestBody`를 사용하므로, `HttpMessageConverter`가 내부적으로 동작한다고 볼 수 있다.
+
+#### V3. @RequestBody 단독
+- `@RequestBody`를 통해 메시지 바디를 받을 때, **처음부터 원하는 객체 타입으로 받는 방식**이다.
+  - 예) `@RequestBody HelloData helloData`
+- **문자열을 받을 때는 단순히 바이트 스트림을 꺼내서 인코딩하는 과정까지만 거쳤지만, 객체를 받기 때문에 역직렬화 과정까지 거친다.**
+  - 애초에 두 경우에서 동작하는 `HttpMessageConverter`의 구현체가 다르다.
+- 참고로, **`@RequestBody`는 생략해서는 안 된다.**
+  - 앞서 어노테이션 생략 규칙에서 확인했듯, 사용자 정의 객체에서 `@RequestBody`를 생략할 경우 `@ModelAttribute`가 동작하여 바인딩에 실패하기 때문이다.
+
+#### V4. HttpEntity 활용
+- 단순 텍스트에서 `HttpEntity<String>`으로 텍스트 데이터를 받았던 것처럼, JSON에서는 `HttpEntity<객체타입>`으로 객체 데이터를 받을 수 있다.
+- **`@RequestBody`, `@ResponseBody`와 마찬가지로 내부적으로 `HttpMessageConverter`가 동작**한다.
+
+#### V5. @ResponseBody를 통한 JSON 응답
+- **반환 타입으로 단순 텍스트뿐만 아니라 객체도 지정할 수 있다.**
+- **`@ResponseBody`를 등록하면 뷰 리졸버 대신 `HttpMessageConverter`가 동작하며, 해당 객체를 JSON 포맷으로 직렬화하여 클라이언트에게 응답**하게 된다.
+- 이때 클라이언트의 Accept 헤더가 JSON을 수용할 수 있는 상태여야 한다.
+  - 예) `Accept: */*` 등
+
+#### 흐름 요약
+1. 클라이언트가 보낸 요청 메시지 바디를 읽기 위해 `@RequestBody`를 사용한다.
+2. `@RequestBody`를 사용했으므로, 내부적으로 `HttpMessageConverter`가 동작하여 내가 원하는 타입(`String`, 객체 등)으로 데이터를 확보할 수 있다.
+3. 뷰 리졸버를 거치지 않고, 응답 메시지를 직접 작성하기 위해서는 `@ResponseBody`를 사용한다.
+4. `@ResponseBody`를 사용하면, 내부적으로 `HttpMessageConverter`가 동작하여 직렬화(객체 → 문자열)된 데이터를 반환하게 된다.
+5. 응답 메시지를 작성하는 것 외에도, 동적으로 상태를 제어하거나 커스텀 헤더를 추가해야 한다면 `@ResponseBody` 대신 `ResponseEntity`를 사용하면 된다.
+
+---
