@@ -504,3 +504,62 @@ public HelloData responseBodyJsonV2() {
 - 따라서 **`@RestController`와 `ResponseEntity`를 혼용하더라도 전혀 문제가 없다.**
 
 ---
+
+## HTTP 메시지 컨버터
+### 개요
+- **메시지 바디에 있는 데이터를 직접 읽거나, 메시지 바디에 데이터를 직접 쓰는 경우에는 `HttpMessageConverter`가 동작**한다.
+- 스프링 MVC는 다음의 경우에 HTTP 메시지 컨버터를 적용한다.
+  - **HTTP 요청:** `@RequestBody`, `HttpEntity` (`RequestEntity`)
+  - **HTTP 응답:** `@ResponseBody`, `HttpEntity` (`ResponseEntity`)
+
+### 주요 메시지 컨버터
+- 스프링 부트는 다양한 기본 메시지 컨버터를 제공하며, **대상 클래스 타입과 미디어 타입(`Content-Type`, `Accept`)을 모두 체크하여 특정 컨버터의 사용 여부를 결정**한다.
+- 조건을 만족하지 않으면 다음 우선순위의 컨버터로 넘어간다.
+
+#### 0. ByteArrayHttpMessageConverter
+- 이름에서 알 수 있듯, **`byte` 배열을 처리할 때 사용**된다.
+- **요청:** 
+  - `@RequestBody` 파라미터가 `byte[]` 타입인 경우
+  - 모든 `Content-Type`을 지원하므로 미디어 타입 검증은 의미 없음 (`Content-Type: */*`)
+- **응답:** 
+  - `@ResponseBody` 메서드의 반환 타입이 `byte[]`인 경우 (응답 헤더의 `Content-Type`이 `application/octet-stream`으로 자동 설정)
+  - HTTP 요청의 `Accept` 헤더가 `byte[]`을 선호하는 경우 동작 (`Accept: application/octet-stream` 등)
+
+#### 1. StringHttpMessageConverter
+- 이름에서 알 수 있듯, **`String` 문자를 처리할 때 사용**된다.
+- **요청:**
+    - `@RequestBody` 파라미터가 `String` 타입인 경우
+    - 모든 `Content-Type`을 지원하므로 미디어 타입 검증은 의미 없음 (`Content-Type: */*`)
+- **응답:**
+    - `@ResponseBody` 메서드의 반환 타입이 `String`인 경우 (응답 헤더의 `Content-Type`이 `text/plain`으로 자동 설정)
+    - HTTP 요청의 `Accept` 헤더가 `String`을 선호하는 경우 동작 (`Accept: text/plain` 등)
+
+#### 2. MappingJackson2HttpMessageConverter
+- **사용자 정의 객체 혹은 `HashMap`을 처리할 때 사용**된다.
+- **요청:**
+    - `@RequestBody` 파라미터가 사용자 정의 객체 혹은 `HashMap` 타입인 경우
+    - **반드시 `Content-Type`이 `application/json`이어야 함**
+- **응답:**
+    - `@ResponseBody` 메서드의 반환 타입이 사용자 정의 객체나 `HashMap`인 경우 (응답 헤더의 `Content-Type`이 `application/json`으로 자동 설정)
+    - HTTP 요청의 `Accept` 헤더가 `JSON`을 선호하는 경우 동작 (`Accept: application/json` 등)
+
+### 동작 원리
+> **스프링은 메시지 컨버터의 `canRead()`, `canWrite()` 메서드를 통해 해당 컨버터가 메시지를 처리할 수 있는지 확인한 후, `read()`, `write()`를 호출하여 실제 동작을 수행**한다.
+
+#### HTTP 요청 데이터 읽기 흐름
+1. HTTP 요청이 오고, 컨트롤러에서 `@RequestBody`나 `HttpEntity` 파라미터를 사용한다.
+2. 메시지 컨버터 목록을 순서대로 돌면서 `canRead()`를 호출하여 조건을 확인한다.
+   - **클래스 타입 검증:** 파라미터 대상 클래스를 지원하는가? (예: `byte[]`, `String`, `HelloData`)
+   - **미디어 타입 검증:** HTTP 요청의 `Content-Type`을 지원하는가? (예: `text/plain`, `application/json`)
+3. 두 조건을 모두 만족하면 `read()` 메서드를 호출하여 해당 객체를 생성하고 초기화(바인딩)한다.
+4. 만족하는 컨버터가 없으면 클라이언트 예외(`415 Unsupported Media Type` 등)를 발생시킨다.
+
+#### HTTP 응답 데이터 생성 흐름
+1. 컨트롤러에 `@ResponseBody`을 등록했거나, 반환 타입으로 `HttpEntity`를 사용한다.
+2. 메시지 컨버터 목록을 순서대로 돌면서 `canWrite()`를 호출하여 조건을 확인한다.
+   - **클래스 타입 검증:** 반환 대상 클래스를 지원하는가? (예: `byte[]`, `String`, `HelloData`)
+   - **미디어 타입 검증:** HTTP 요청의 `Accept` 헤더를 지원하는가? (더 정확히는 `@RequestMapping`의 `produces`)
+3. 두 조건을 모두 만족하면 `write()` 메서드를 호출하여 HTTP 응답 메시지 바디에 데이터를 입력한다.
+4. 만족하는 컨버터가 없으면 클라이언트 예외(`406 Not Acceptable` 등)를 발생시킨다.
+
+---
