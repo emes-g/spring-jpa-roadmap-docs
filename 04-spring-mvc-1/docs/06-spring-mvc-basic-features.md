@@ -393,3 +393,114 @@ public void requestBodyJsonV1(HttpServletRequest request, HttpServletResponse re
 5. 응답 메시지를 작성하는 것 외에도, 동적으로 상태를 제어하거나 커스텀 헤더를 추가해야 한다면 `@ResponseBody` 대신 `ResponseEntity`를 사용하면 된다.
 
 ---
+
+## 서버에서 클라이언트로 응답 데이터를 제공하는 방법
+### 개요
+> **응답 메시지 바디를 통해 다음과 같은 데이터를 전송할 수 있다.**
+
+#### 정적 리소스
+- 변경되지 않는 **정적인 HTML, CSS, JS 등을 제공할 때 사용**한다.
+
+#### 뷰 템플릿
+- **동적인 HTML을 제공할 때 사용**한다.
+
+#### HTTP API
+- **HTML 이외의 데이터를 제공할 때 사용**한다.
+
+### 정적 리소스
+- **스프링 부트는 클래스패스(개발 환경에서는 `src/main/resources` 하위)에 위치한 다음 디렉토리들의 정적 리소스를 기본적으로 제공**한다.
+  - `/static`, `/public`, `/resources`, `/META-INF/resources`
+- 그 중에서도 **주로 활용하는 경로는 `src/main/resources/static`**이다.
+- **클래스패스 (`classpath:/`):**
+  - 자바 앱이 실행될 때 자바 클래스(`.class`) 파일과 리소스 파일을 찾는 루트(기준) 경로를 의미한다.
+  - `src/main/resources`에는 정적 리소스와 뷰 템플릿 파일밖에 없는데, `.class` 파일이 어딨다는 걸까?
+    - **패키징된 JAR(`.jar`) 파일의 압축을 해제해 보면 `BOOT-INF/classes/`라는 경로가 있는데, 이 경로가 바로 클래스패스(`classpath:/`) 루트**인 것이다.
+    - 개발 시점에 `src/main/java`와 `src/main/resources`로 분리되어 있던 파일들이 해당 클래스패스에 나란히 놓여 있는 것을 확인할 수 있다. 
+
+### 뷰 템플릿
+- **스프링 부트에서 뷰 템플릿 파일을 제공할 때는 기본적으로 `src/main/resources/templates` 경로를 활용**한다.
+- 보통 타임리프를 사용하는데, **타임리프 의존성을 추가하면 스프링 부트가 기본적으로 다음과 같이 뷰 리졸버 설정을 자동화**해 둔다.
+  - 기본 접두사(Prefix): `classpath:/templates/`
+  - 기본 접미사(Suffix): `.html`
+  - 따라서 컨트롤러에서 뷰의 논리적 이름(예: `response/hello`)만 반환하더라도, 위 설정이 결합되어 실제 물리적 파일 위치를 찾아 렌더링한다.
+- **템플릿 엔진에 따라 렌더링 방식이 다를 뿐이지, 뷰 템플릿 파일은 물리적으로 반드시 존재해야 한다.** 
+  - **JSP:** 템플릿 파일로 이동(포워딩)한 후, WAS가 렌더링을 수행
+  - **타임리프:** 타임리프 템플릿 엔진이 뷰 객체에서 템플릿 파일을 읽어 들인 후, 렌더링을 수행 
+
+#### V1. ModelAndView 반환
+```java
+@RequestMapping("/response-view-v1")
+public ModelAndView responseViewV1() {
+    return new ModelAndView("response/hello")
+            .addObject("data", "hello!");
+}
+```
+- `ModelAndView` 객체를 직접 생성하여 데이터(`Model`)와 뷰의 논리적 이름을 담아 반환한다.
+
+#### V2. String 반환 (권장)
+```java
+@RequestMapping("/response-view-v2")
+public String responseViewV2(Model model) {
+    model.addAttribute("data", "hello!!");
+    return "response/hello";
+}
+```
+- 매개변수로 `Model`을 주입받아 데이터를 담고, 반환 타입은 `String`으로 하여 뷰의 논리적 이름만 반환한다.
+
+#### V3. void 반환 (비권장)
+- 반환 타입을 `void`로 두고 매핑 URL을 뷰 템플릿 파일의 경로와 일치시키는 방식인데, 명시성이 떨어져 권장하지 않는다.
+
+### HTTP API - 텍스트
+#### 텍스트 데이터 응답
+```java
+// 1. 서블릿 기반 기술
+@GetMapping("/response-body-string-v1")
+public void responseBodyV1(HttpServletResponse response) throws IOException {
+    response.getWriter().write("ok");
+}
+
+// 2. ResponseEntity
+@GetMapping("/response-body-string-v2")
+public ResponseEntity<String> responseBodyV2() {
+    return new ResponseEntity<>("ok", HttpStatus.OK);
+}
+
+// 3. @ResponseBody
+@ResponseBody
+@GetMapping("/response-body-string-v3")
+public String responseBodyV3() {
+    return "ok";
+}
+```
+
+#### JSON 데이터 응답
+```java
+// 1. ResponseEntity
+@GetMapping("/response-body-json-v1")
+public ResponseEntity<HelloData> responseBodyJsonV1() {
+    HelloData helloData = new HelloData();
+    helloData.setUsername("kim");
+    helloData.setAge(20);
+
+    return new ResponseEntity<>(helloData, HttpStatus.OK);
+}
+
+// 2. @ResponseBody
+@ResponseStatus(HttpStatus.OK)
+@ResponseBody
+@GetMapping("/response-body-json-v2")
+public HelloData responseBodyJsonV2() {
+    HelloData helloData = new HelloData();
+    helloData.setUsername("kim");
+    helloData.setAge(20);
+
+    return helloData;
+}
+```
+
+#### @RestController와 ResponseEntity
+- 클래스 레벨에 `@RestController`가 붙어 있으면 기본적으로 모든 메서드에 `@ResponseBody`가 적용되어, 반환값이 직접 응답 메시지에 입력된다.
+- 하지만 **특정 메서드가 `ResponseEntity`를 반환하도록 구현되어 있다면, 스프링은 이를 최우선으로 적용**하여 응답을 만든다.
+- 따라서 **`@RestController`와 `ResponseEntity`를 혼용하더라도 전혀 문제가 없다.**
+
+---
