@@ -191,8 +191,8 @@ public class MemberController {
 ```
 1. **OCP 준수:**
    - `@ModelAttribute`를 사용하지 않고, `@RequestParam`을 통해 일일이 사용자의 요청을 받아들인다고 생각해보자.
-   - 만약 도메인 객체에 `grade`라는 새로운 필드 변수가 추가된다면, 컨트롤러의 핸들러 메서드 파라미터 역시 수정해야만 한다.
-   - 하지만 `@ModelAttribute`를 사용하면 도메인 객체에 필드만 추가할 뿐, 컨트롤러를 수정할 필요가 없다.
+   - 만약 도메인 객체에 `grade`라는 새로운 필드 변수가 추가된다면, 핸들러의 메서드 파라미터 역시 수정해야만 한다.
+   - 하지만 `@ModelAttribute`를 사용하면 도메인 객체에 필드만 추가할 뿐, 핸들러를 수정할 필요가 없다.
 2. **개발자 편의성:**
    - 매개변수의 순서에 의존하지 않고 개발할 수 있다.
 
@@ -301,8 +301,8 @@ public String requestParamMultiMap(@RequestParam MultiValueMap<String, Object> p
 - `@ModelAttribute` 역시 `@RequestParam`과 마찬가지로 컨트롤러 매개변수에서 생략할 수 있다.
 - 스프링은 요청 파라미터 관련 어노테이션이 생략되었을 경우, 다음과 같은 규칙을 적용한다.
   - **원시 타입, 래퍼 클래스:** `@RequestParam`으로 인식
-  - **사용자 정의 객체:** `@ModelAttribute`로 인식
-  - **스프링 제공 특정 객체:** 요청 파라미터를 바인딩하는 대신, 해당 객체 자체를 파라미터에 주입 (내부적으로 `ArgumentResolver`가 동작하여 처리)
+  - **`ArgumentResolver`로 지정해둔 타입 (스프링 제공 객체 등):** 요청 파라미터를 바인딩하는 대신, 해당 객체 자체를 파라미터에 주입
+  - **나머지 (사용자 정의 객체 등):** `@ModelAttribute`로 인식
 
 ### HTTP API - 단순 텍스트 형식의 메시지 바디 조회
 > **클라이언트가 요청 메시지 바디에 단순 텍스트 데이터를 담아 전달할 때, 해당 데이터를 서버가 어떻게 조회하는지 살펴보자.**
@@ -410,7 +410,7 @@ public void requestBodyJsonV1(HttpServletRequest request, HttpServletResponse re
 ### 정적 리소스
 - **스프링 부트는 클래스패스(개발 환경에서는 `src/main/resources` 하위)에 위치한 다음 디렉토리들의 정적 리소스를 기본적으로 제공**한다.
   - `/static`, `/public`, `/resources`, `/META-INF/resources`
-- 그 중에서도 **주로 활용하는 경로는 `src/main/resources/static`**이다.
+- 그 중에서도 **주로 활용하는 경로는 `src/main/resources/static`이다.**
 - **클래스패스 (`classpath:/`):**
   - 자바 앱이 실행될 때 자바 클래스(`.class`) 파일과 리소스 파일을 찾는 루트(기준) 경로를 의미한다.
   - `src/main/resources`에는 정적 리소스와 뷰 템플릿 파일밖에 없는데, `.class` 파일이 어딨다는 걸까?
@@ -563,3 +563,185 @@ public HelloData responseBodyJsonV2() {
 4. 만족하는 컨버터가 없으면 클라이언트 예외(`406 Not Acceptable` 등)를 발생시킨다.
 
 ---
+
+## RequestMappingHandlerAdapter
+### 개요
+![스프링 MVC 프레임워크](./images/spring-mvc-architecture.png)
+
+- 이름에서 알 수 있듯, **`RequestMappingHandlerAdapter`는 `@RequestMapping`이 등록된 핸들러를 처리하는 어댑터**이다.
+  - 그렇기에, **어노테이션 기반 컨트롤러에서는 핸들러 어댑터로서 대부분 `RequestMappingHandlerAdapter`를 호출**하게 된다.  
+- **앞서 배운 HTTP 메시지 컨버터가 이 `RequestMappingHandlerAdapter` 내부에서 동작**하기 때문에 이번 챕터에서 소개하고자 한다.
+
+### 아키텍처
+![RequestMappingHandlerAdapter 아키텍처](./images/request-mapping-handler-adapter-architecture.png)
+
+- 스프링 MVC 프레임워크를 보면, `DispatcherServlet`이 핸들러 어댑터를 호출하는 것을 알 수 있다.
+- 앞서 말했던 대로, 스프링 MVC의 어노테이션 기반 컨트롤러에서는 주로 `RequestMappingHandlerAdapter`를 호출하게 되는데, 그 구조는 위와 같다.
+- 우선 핸들러 어댑터와 핸들러 이외에 존재하는 `ArgumentResolver`, `ReturnValueHandler`에 대해 간단히만 알아보자. 
+- **ArgumentResolver:**
+  - **`ViewResolver`가 `View`를 처리해줬듯, `ArgumentResolver`는 `Argument`를 처리하겠거니** 유추할 수 있다.
+  - 그러면 `Argument`를 어떻게 처리해주는 걸까?
+  - 후술하겠지만 결론부터 말하면, **`ArgumentResolver` 덕분에 스프링 프레임워크가 다양한 파라미터를 제공**할 수 있는 것이다.
+- **ReturnValueHandler:**
+  - **`ArgumentResolver`가 `Argument`를 처리해줬듯, `ReturnValueHandler`도 반환값을 처리하겠거니** 유추할 수 있다.
+  - 그러면 반환값을 어떻게 처리해주는 걸까?
+  - 이것 역시 후술하겠지만 결론부터 말하면, **`ReturnValueHandler`가 어댑팅해주는 덕분에 핸들러가 다양한 형태(`ModelAndView`, `String` 등)로 반환**할 수 있는 것이다.
+- 이제 하나씩 자세히 알아보자.
+
+### ArgumentResolver (파라미터 처리기)
+#### 개요
+- 스프링 MVC의 어노테이션 기반 컨트롤러에서는 다양한 파라미터를 받을 수 있었다.
+  - **스프링 제공 객체:** `HttpServletRequest`, `Model`, ...
+  - **요청 파라미터 조회 어노테이션:** `@RequestParam`, `@ModelAttribute`, ...
+  - **메시지 바디 처리 어노테이션/객체:** `@RequestBody`, `HttpEntity`, ...
+  - ...
+- 이렇게 다양한 파라미터를 받을 수 있던 이유가 바로 `HandlerMethodArgumentResolver`(이하 `ArgumentResolver`)가 내부적으로 동작했기 때문이다.
+- 참고로, 스프링은 30개가 넘는 다양한 `ArgumentResolver`를 기본적으로 제공하고 있다.
+
+#### 동작 흐름
+1. `RequestMappingHandlerAdapter`가 컨트롤러(핸들러)를 실행하기 전, 해당 핸들러가 필요로 하는 파라미터를 분석한다.
+2. 등록된 여러 `ArgumentResolver`를 순회하며, 이 `ArgumentResolver`가 해당 파라미터를 처리(`supportsParameter()`)할 수 있는지 확인한다.
+3. 지원하는 경우, `resolveArgument()`를 호출하여 실제 파라미터 값(객체)을 생성한다.
+   - 느꼈겠지만, **구조적으로 핸들러 어댑터 목록에서 해당 핸들러를 지원하는 어댑터를 찾아 실행하는 것과 굉장히 유사**하다.
+   - 이처럼 스프링은 인터페이스를 통해 일관된 방식으로 확장성을 제공하고 있다.
+4. 파라미터 값이 모두 준비되면, 핸들러를 호출하면서 해당 값들을 넘겨준다.
+
+### ReturnValueHandler (반환값 처리기)
+- 앞서 간단하게 살펴봤던 것처럼, `HandlerMethodReturnValueHandler`(이하 `ReturnValueHandler`)는 `ArgumentResolver`와 비슷한 역할을 수행한다.
+- 핸들러에서 반환되는 다양한 반환값(`String`, `ModelAndView`, `ResponseEntity`, `void`, ...)을 어댑팅하여 **`DispatcherServlet`(크게는 프레임워크)이 일관된 형태로 후속 작업을 수행할 수 있도록** 돕는다.
+
+### HTTP 메시지 컨버터의 활용 위치
+![HTTP 메시지 컨버터 위치](./images/http-message-converter-position.png)
+
+- **이러한 `ArgumentResolver`나 `ReturnValueHandler` 중에서도, 메시지 바디를 직접 읽거나 써야 하는 경우에만 내부적으로 HTTP 메시지 컨버터가 동작**한다.
+  - 즉, 모든 `ArgumentResolver`나 `ReturnValueHandler`가 HTTP 메시지 컨버터를 사용하는 것은 아니고, **메시지 바디를 다루는 특정 처리기에서만 사용**된다는 것이다.
+- **요청:**
+  - `@RequestBody`, `HttpEntity`를 처리하는 `ArgumentResolver`가 HTTP 메시지 컨버터를 호출하여 파라미터 객체를 생성한다.
+- **응답:**
+  - `@ResponseBody`, `HttpEntity`를 처리하는 `ReturnValueHandler`가 HTTP 메시지 컨버터를 호출하여 응답 메시지 바디에 데이터를 작성한다.
+
+### MethodProcessor
+- 요청과 응답에서 메시지 바디를 처리하는 로직이 비슷하기 때문에, **스프링은 `ArgumentResolver`와 `ReturnValueHandler`를 동시에 구현한 클래스인 `MethodProcessor`를 제공**한다. (궁금하면 IDE에서 상속 관계를 확인해보기)
+  - **`@RequestBody`, `@ResponseBody` 처리:** `RequestResponseBodyMethodProcessor` 동작
+  - **`HttpEntity` 처리:** `HttpEntityMethodProcessor` 동작
+- 이 프로세서들이 **내부적으로 HTTP 메시지 컨버터를 호출하여 데이터를 알맞은 형태로 변환**한다.
+  - **단순 텍스트:** 인코딩/디코딩 수행
+  - **객체 데이터:** 컨버터 내부의 `ObjectMapper`를 통해 직렬화/역직렬화까지 수행
+
+### 기능 확장
+- 스프링은 `ArgumentResolver`, `ReturnValueHandler`, `HttpMessageConverter`를 모두 인터페이스로 제공한다.
+  - 즉, 기능 확장이 필요하면 얼마든지 추가적인 구현체를 만들 수 있으며, 여기서 스프링의 철학인 '**역할과 구현의 철저한 분리**'를 느낄 수 있다.
+- 메시지 컨버터를 확장할 일은 사실 거의 없지만, **커스텀 어노테이션 파라미터를 처리하기 위해 `ArgumentResolver`를 확장하는 일은 종종 발생**한다.
+- 이렇게 **확장한 기능은 `WebMvcConfigurer` 인터페이스를 통해 등록**하면 된다.
+```java
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        // 커스텀 ArgumentResolver 등록
+    }
+
+    @Override
+    public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+        // 커스텀 HttpMessageConverter 등록
+    }
+} 
+```
+
+### 커스텀 ArgumentResolver 구현 예시 (로그인 세션 처리)
+#### 개요
+- 로그인한 사용자의 정보를 컨트롤러에서 확인해야할 때, 서버는 클라이언트가 보낸 `JSESSIONID` 쿠키를 키로 삼아 세션 저장소에서 세션 객체를, 나아가 세션 객체에서는 회원 객체를 꺼내와야 한다.
+- **세션을 활용하기 위해 단순히 `HttpServletRequest`를 활용할 경우, 모든 컨트롤러마다 서블릿 요청 객체에서 세션을 꺼내고 캐스팅하는 작업을 반복**해야 한다.
+- 따라서 **이를 해결하기 위해 커스텀 어노테이션과 `ArgumentResolver`를 만들어 볼 것**이다.
+
+#### 1. 커스텀 어노테이션 생성 (@Login)
+```java
+@Target(ElementType.PARAMETER)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Login {
+}
+```
+- **`@Target(ElementType.PARAMETER)`:**
+  - 이 어노테이션이 생성될 수 있는 위치를 지정한다.
+  - **`PARAMETER`로 지정했으므로, 메서드의 파라미터(매개변수) 앞에만** 붙일 수 있다.
+- **`@Retention(RetentionPolicy.RUNTIME)`:**
+  - 이 어노테이션의 생존 주기를 지정한다.
+  - **`RUNTIME`으로 지정해야 실제 런타임 환경에서 스프링(리플렉션)이 해당 어노테이션의 존재를 동적으로 읽고 처리**할 수 있다.
+
+#### 2. ArgumentResolver 구현 (LoginMemberArgumentResolver)
+```java
+public class LoginMemberArgumentResolver implements HandlerMethodArgumentResolver {
+
+    @Override
+    public boolean supportsParameter(MethodParameter parameter) {
+        // 1. 파라미터에 @Login 어노테이션이 붙어 있는지 확인
+        boolean hasLoginAnnotation = parameter.hasParameterAnnotation(Login.class);
+        // 2. 파라미터의 타입이 Member 클래스(또는 그 하위 클래스)인지 확인
+        boolean hasMemberType = Member.class.isAssignableFrom(parameter.getParameterType());    // ArgumentResolver로 지정해둔 타입
+        
+        // 두 조건을 모두 만족해야만 아래의 resolveArgument()가 실행됨
+        return hasLoginAnnotation && hasMemberType;
+    }
+
+    @Override
+    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, 
+                                  NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
+        
+        // NativeWebRequest를 통해 HttpServletRequest 객체를 추출
+        HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
+        
+        // 클라이언트의 JSESSIONID를 키로 사용하여, 세션 저장소에서 해당 클라이언트만의 단일 세션 객체를 가져옴 (false: 없으면 null)
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return null;
+        }
+        
+        // 가져온 세션 객체 내부에서 "loginMember"라는 키로 보관된 회원 객체를 찾아 반환
+        // 반환된 이 객체를 스프링이 핸들러의 파라미터에 자동으로 주입해 준다.
+        return session.getAttribute("loginMember");
+    }
+}
+```
+
+#### 3. WebMvcConfigurer에 등록
+```java
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(new LoginMemberArgumentResolver());
+    }
+}
+```
+- **만들어진 `ArgumentResolver`를 스프링이 인식할 수 있도록 `WebMvcConfigurer`를 통해 등록**한다.
+
+#### 4. 적용 전
+```java
+@GetMapping("/")
+public String home(HttpServletRequest request) {
+    HttpSession session = request.getSession(false);
+    if (session == null) {
+        return "home";
+    }
+    Member loginMember = (Member) session.getAttribute("loginMember");
+    if (loginMember == null) {
+        return "home";
+    }
+    
+    // 비즈니스 로직...
+}
+```
+
+#### 5. 적용 후
+```java
+@GetMapping("/")
+public String home(@Login Member loginMember) {
+    if (loginMember == null) {  // 서블릿 요청 객체에서 세션 꺼내서 캐스팅할 필요가 없어짐
+        return "home";
+    }
+    // 비즈니스 로직...
+}
+```
+- 서블릿 요청 객체에서 세션 꺼내서 캐스팅할 필요가 없어졌다.
+- 결론적으로 **`ArgumentResolver`를 확장한 덕분에, 컨트롤러는 비즈니스 로직에만 집중할 수 있게 됐다.** (HTTP 세션이나 캐스팅과 같은 작업 고려 X)
