@@ -78,41 +78,94 @@
 
 ## JDBC와 최신 데이터 접근 기술
 ### 최신 데이터 접근 기술의 등장 배경
-- 과거에는 애플리케이션 로직에서 직접 JDBC를 사용하여 DB에 SQL을 전달했는데, 사용 방법이 복잡해서 생산성이 떨어졌다.
+![JDBC](./images/jdbc-flow.png)
+- **과거에는 애플리케이션 로직에서 직접 JDBC를 사용하여 DB에 SQL을 전달했는데, 사용 방법이 복잡해서 생산성이 떨어졌다.**
   - 직접 JDBC를 사용하는 것은 핵심 비즈니스 로직 외에 신경써야 할 부분이 많았다.
-- 그래서 최근에는 JDBC를 편리하게 사용할 수 있도록 돕는 다양한 데이터 접근 기술들이 등장하게 되었다.
-- 크게 SQL Mapper와 ORM으로 구분할 수 있는데, 하나씩 알아보도록 하자.
+- 그래서 **최근에는 JDBC를 편리하게 사용할 수 있도록 돕는 다양한 데이터 접근 기술들이 등장**하게 되었다.
+- **크게 SQL Mapper와 ORM으로 구분**할 수 있는데, 하나씩 알아보도록 하자.
 
 ### SQL Mapper
-- 대표적인 기술로 JdbcTemplate과 MyBatis가 있다.
+![SQL Mapper](./images/sql-mapper-flow.png)
+- 대표적인 기술로 **JdbcTemplate**과 **MyBatis**가 있다.
 - **장점:**
-  - JDBC의 반복 코드(연결 및 해제 등)를 제거해 준다.
-  - SQL 응답 결과를 객체로 편리하게 변환해 준다.
+  - **JDBC의 반복 코드(연결 및 해제 등)를 제거**해 준다.
+  - **SQL 응답 결과를 객체로 편리하게 변환**해 준다.
 - **단점:**
-  - 개발자가 직접 SQL문을 작성해야 한다는 것인데, 이는 오히려 SQL만 작성할 줄 알면 프로젝트에 금방 적용할 수 있다는 장점이 되기도 한다.
+  - **개발자가 직접 SQL문을 작성해야 한다**는 것인데, 이는 **오히려 SQL만 작성할 줄 알면 프로젝트에 금방 적용할 수 있다는 장점**이 되기도 한다.
 
 ### ORM (Object-Relational Mapping)
-- 객체를 관계형 DB의 테이블과 매핑해 주는 기술이다.
-- 대표적인 자바 표준 인터페이스로는 JPA가 있으며, 이를 구현한 기술(구현체)로는 하이버네이트와 이클립스링크 등이 있다.
+![ORM](./images/orm-flow.png)
+- **객체를 관계형 DB의 테이블과 매핑해 주는 기술**이다.
+- **대표적인 자바 표준 인터페이스로는 JPA**가 있으며, 이를 **구현한 기술(구현체)로는 하이버네이트**와 이클립스링크 등이 있다.
   - 주로 사용하는 구현체는 하이버네이트이다.
 - **동작 원리:**
-  - 개발자가 자바 컬렉션(`List`, `Map` 등)을 다루듯이 객체를 JPA에 전달한다.
-  - ORM 구현체가 객체를 분석하여 동적으로 SQL문을 생성하고, 이를 JDBC에 전달하여 실행한다.
+  - 개발자가 자바 **컬렉션(`List`, `Map` 등)을 다루듯이 객체를 JPA에 전달**한다.
+  - **ORM 구현체가 객체를 분석하여 동적으로 SQL문을 생성하고, 이를 JDBC에 전달하여 실행**한다.
 - **장점:**
-  - 직접 SQL문을 작성하지 않아도 되므로 개발 생산성이 높아진다.
-  - 각 DB마다 다른 SQL 문법을 사용하는 문제(파편화 문제)도 ORM이 중간에서 자체적으로 해결해 준다.
+  - **직접 SQL문을 작성하지 않아도 되므로 개발 생산성**이 높아진다.
+  - **각 DB마다 다른 SQL 문법을 사용하는 문제(파편화 문제)도 ORM이 중간에서 자체적으로 해결**해 준다.
 - **단점:**
-  - SQL Mapper와 달리 기술 자체의 난이도가 높아, 프로젝트에 적용하기 위해서는 깊이 있는 학습이 요구된다.
+  - SQL Mapper와 달리 **기술 자체의 난이도가 높아, 프로젝트에 적용하기 위해서는 깊이 있는 학습이 요구**된다.
 
 ### JDBC와 데이터 접근 기술
-- SQL Mapper와 ORM은 모두 개발자를 돕는 도구일 뿐, 내부적으로는 JDBC를 기반으로 동작한다.
-- 따라서 해당 데이터 접근 기술들(SQL Mapper, ORM)을 깊이 있게 이해하기 위해서는 반드시 JDBC의 기본 동작 원리를 알고 있어야 한다.
+- **SQL Mapper와 ORM은 모두 개발자를 돕는 도구일 뿐, 내부적으로는 JDBC를 기반으로 동작**한다.
+- 따라서 **해당 데이터 접근 기술들(SQL Mapper, ORM)을 깊이 있게 이해하기 위해서는 반드시 JDBC의 기본 동작 원리를 알고 있어야** 한다.
 
 ---
 
 ## DB 연결
-### 실습
-### 동작 흐름
+### 사전 작업
+- **DB에 접근하기 위해서는 사전에 외부 DB 서버를 구동**시켜야 한다.
+  - 본 실습에서는 H2 DB를 사용하기 위해, 터미널을 이용하여 H2 DB 서버를 구동(`./h2.bat`)시켰다.
+- **DB 접속에 필요한 기본 정보들(`URL`, `USERNAME`, `PASSWORD`)을 입력**받아야 한다.
+  - 본 실습에서는 해당 정보들만 모아둔 추상(`abstract`) 클래스를 만들었다.
+  - 추상 클래스로 생성한 이유는, 불필요한 객체 생성을 방지하기 위함이다.
+
+### JDBC를 통한 DB 연결
+```java
+@Slf4j
+public class DBConnectionUtil {
+
+    public static Connection getConnection() {
+        try {
+            Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+            log.info("get connection={}, class={}", connection, connection.getClass());
+            return connection;
+        } catch (SQLException e) {  // 예외 변환
+            throw new IllegalStateException(e);
+        }
+    }
+}
+```
+- **JDBC가 제공하는 `DriverManager.getConnection()` 메서드를 사용하여 DB와 연결**한다.
+- 이 메서드를 호출하면 **라이브러리에 등록된 DB 드라이버를 찾아 실제 커넥션을 맺고 반환**해 준다.
+- 연결 과정에서 발생하는 **체크 예외(`SQLException`)는 언체크 예외(`RuntimeException`, `IllegalStateException` 등)로 변환하여 던짐으로써, 비즈니스(서비스) 로직이 특정 기술(JDBC)의 예외에 종속되지 않도록** 하였다.
+
+### 커넥션 인터페이스와 구현체
+```text
+get connection=conn0: url=jdbc:h2:tcp://localhost/~/test user=SA, class=class org.h2.jdbc.JdbcConnection
+```
+- 앞서 구현한 `getConnection()` 메서드를 실행하면 위와 같은 결과를 획득할 수 있다.
+- **애플리케이션은 분명 JDBC 표준 커넥션 '인터페이스'인 `java.sql.Connection`에 의존**하고 있지만, **`DriverManager`를 통해 반환받은 커넥션 객체는 `org.h2.jdbc.JdbcConnection`인 것을 확인**할 수 있다.
+  - 앞서 설명했듯, `org.h2.jdbc.JdbcConnection`은 H2 DB 벤더(회사)가 `java.sql.Connection` 인터페이스를 구현하여 제공하는 H2 DB 전용 커넥션이다. 
+  - 해당 구현체 코드는 `build.gradle`을 통해 추가한 외부 라이브러리(`com.h2database:h2`)에 포함되어 있다.
+
+### DriverManager
+#### 개념
+- 이름에서 알 수 있듯, **DriverManager는 라이브러리에 등록된 DB 드라이버들을 관리하고, 적절한 드라이버를 찾아 커넥션을 반환**해 준다.
+- 구체적인 커넥션 요청 흐름은 다음과 같다.
+
+#### 커넥션 요청 흐름 (동작 흐름)
+![커넥션 요청 흐름](./images/connection-request-flow.png)
+1. **커넥션 요청:**
+   - **애플리케이션 로직에서 DB 접근이 필요할 때 `DriverManager.getConnection()`을 호출**한다.
+2. **드라이버 탐색 및 검증 (URL 검사):**
+   - `DriverManager`는 **라이브러리에 등록된 각 DB 드라이버에 접속 정보(`URL`, `USERNAME`, `PASSWORD` 등)를 전달하여 커넥션을 획득할 수 있는지 순차적으로 확인**한다. 
+   - **각 드라이버는 전달받은 URL의 접두어(Prefix)를 검사하여 본인이 처리할 수 있는 요청인지 판단**한다.
+   - 가령 URL이 `jdbc:h2`로 시작할 경우, MySQL 드라이버는 본인이 처리할 수 없음(`false`)을 반환하여 다음 드라이버로 순서를 넘긴다.
+   - 반면 H2 드라이버는 본인이 처리할 수 있으므로(`true`), 실제 DB에 연결을 시도한다.
+3. **커넥션 반환:**
+   - **DB 연결에 성공하여 획득한 커넥션 객체(`org.h2.jdbc.JdbcConnection`)을 클라이언트에 반환**한다.
 
 ---
 
