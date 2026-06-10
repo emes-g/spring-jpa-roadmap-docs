@@ -14,7 +14,7 @@
 일반적인 `import`와 `static import`는 **가져오는 대상**과 **코드에서의 사용 방식**에서 차이가 있다.
 
 ### 1. 일반 Import (`import`)
-* **대상:** 특정 패키지에 있는 **클래스(Class)**를 가져온다.
+* **대상:** 특정 패키지에 있는 클래스(Class)를 가져온다.
 * **사용:** 클래스 이름을 통해 정적 메서드나 필드에 접근해야 한다.
     ```java
     import org.junit.jupiter.api.Assertions; 

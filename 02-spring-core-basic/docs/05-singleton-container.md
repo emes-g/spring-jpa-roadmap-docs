@@ -17,7 +17,7 @@
 - **static 인스턴스:** 
   - 클래스 레벨에 딱 하나만 존재하도록 만든다.
   - 예) `private static final SingletonService instance = new SingletonService();`
-- private 생성자:
+- **private 생성자:**
   - 외부에서 `new` 키워드로 임의의 인스턴스를 생성하지 못하도록 막는다.
   - 이는 **실행 시점에 오류가 터지지 않고, 컴파일 시점에 막히도록 설계한 방식**이므로 **좋은 설계**라고 볼 수 있다.
 
