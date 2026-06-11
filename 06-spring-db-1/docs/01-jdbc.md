@@ -170,6 +170,47 @@ get connection=conn0: url=jdbc:h2:tcp://localhost/~/test user=SA, class=class or
 ---
 
 ## JDBC 개발
-### 등록
-### 조회
-### 수정, 삭제
+### JDBC 기본 흐름
+```java
+Connection conn = null;
+PreparedStatement pstmt = null;
+ResultSet rs = null;
+
+try {
+    conn = getConnection(); // 1. 커넥션 획득
+    pstmt = conn.prepareStatement(sql); // 2. PreparedStatement 생성 및 파라미터 바인딩
+    // 3. SQL 실행 (executeQuery 또는 executeUpdate)
+    rs = pstmt.executeQuery(); 
+    // 4. 결과 처리 (rs.next() 활용)
+} catch (SQLException e) {
+    // 예외 처리
+} finally {
+    // 5. 리소스 반환 (rs -> pstmt -> conn 역순)
+}
+```
+- JDBC를 활용하여 데이터를 처리하는 기본 흐름은 위와 같다. 
+
+#### PreparedStatement와 파라미터 바인딩
+- SQL 인젝션을 방어하기 위해, 실행할 SQL문을 `Statement`가 아닌 `PreparedStatement` 객체에 담았다.
+  - `PreparedStatement`는 파라미터 바인딩 방식을 지원하여, 악의적인 쿼리가 삽입되는 것을 막을 수 있다.
+  - 쿼리를 미리 컴파일한 후, 사용자 입력값을 실행 가능한 명령어가 아닌 단순한 데이터(리터럴)로 취급하여 처리하므로 SQL 인젝션 공격이 먹히지 않는다.
+
+#### 쿼리 실행 메서드 (CUD vs R)
+- **executeUpdate():** 
+  - 데이터의 변경(`INSERT`, `UPDATE`, `DELETE`)할 때 사용한다. 
+  - 처리 결과로 DB에서 영향을 받은 데이터 레코드(Row) 수를 반환한다.
+- **executeQuery():** 
+  - 데이터를 조회(`SELECT`)할 때 사용한다. 
+  - DB 조회 결과를 담고 있는 `ResultSet` 객체를 반환한다.
+
+#### ResultSet과 데이터 조회 원리
+- `ResultSet` 내부에 존재하는 커서를 통해 데이터를 순차적으로 읽어올 수 있는데, 이는 자바에서 연결 리스트(`LinkedList`)를 순회하는 방식과 상당히 유사하다.
+- 최초 반환 시 커서는 실제 데이터가 있는 곳의 앞(Before First Row)을 가리키고 있어 데이터를 즉시 조회할 수 없는 상태다.
+- 실제 데이터를 읽기 위해서는 `rs.next()`를 최소 1회 호출하여 커서를 다음 행으로 이동시켜야 한다.
+- `rs.next()`는 커서를 다음으로 이동시키며, 이동한 위치에 읽을 데이터가 존재하면 `true`, 없으면 `false`를 반환한다.
+  - 연결 리스트에서 `cursor.next()`와 `cursor.hasNext()`를 연이어 호출한 상황과 동일하다.
+
+### JDBC 리소스 반환 (Close)
+- 획득한 외부 리소스(`Connection`, `PreparedStatement`, `ResultSet`)는 사용이 끝난 후 반드시 `finally` 블록 등을 통해 닫아주어야(Close) 한다.
+- 리소스를 반환하지 않으면 추후 커넥션 고갈 등의 문제가 발생할 수 있다.
+- 리소스를 반환할 때는 획득한 역순(`ResultSet` → `PreparedStatement` → `Connection`)으로 반환하는 것이 원칙이다.
