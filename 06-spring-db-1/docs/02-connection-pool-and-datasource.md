@@ -181,12 +181,12 @@ void dataSourceConnectionPool() throws SQLException, InterruptedException {
 - 이를 방지하고자 메인 스레드가 아닌, 별도의 스레드에서 커넥션을 생성한다.
 
 #### 커넥션을 요청했는데 커넥션 풀이 비어있는 경우
-- 곧바로 에러를 반환하는 것은 아니고, 일단 해당 스레드를 대기(blocking) 상태로 만든다.
-- 대기 상태에 있는 동안, 커넥션 풀에 커넥션이 반환되는 경우, 해당 커넥션을 클라이언트에 반환하게 된다.
-- 설정된 대기 시간(Connection Timeout, 디폴트 30초) 내에 커넥션을 획득하지 못한다면, 그때는 획득 실패 예외(Timeout)가 발생한다. 
+- **곧바로 에러를 반환하는 것은 아니고, 일단 해당 스레드를 대기(blocking) 상태**로 만든다.
+- **대기 상태에 있는 동안 커넥션 풀에 커넥션이 반환되는 경우, 해당 커넥션을 클라이언트에 반환**하게 된다.
+- **설정된 대기 시간(Connection Timeout, 디폴트 30초) 내에 커넥션을 획득하지 못한다면, 그때 획득 실패 예외(Timeout)가 발생**한다. 
 
 #### 순수 커넥션 객체가 아닌 프록시 객체를 획득하는 이유
-- 프록시 객체로 감싼 덕에, `close()`가 호출되더라도 물리적인 네트워크 연결이 종료되지 않고, 단순히 커넥션 풀에 커넥션이 반환되는 작업만 이루어진다.
+- **프록시 객체로 감싼 덕에, `close()`가 호출되더라도 물리적인 네트워크 연결이 종료되지 않고, 단순히 커넥션 풀에 커넥션이 반환되는 작업이 이루어진다.**
 - 만약 순수 커넥션 객체였다면, `close()`가 호출되는 시점에 물리적인 네트워크 연결이 종료되었을 것이다.
 
 ### 실습 3. 애플리케이션 코드에 DataSource 적용
@@ -232,7 +232,7 @@ private void close(Connection conn, Statement stmt, ResultSet rs) {
     JdbcUtils.closeConnection(conn);
 }
 ```
-- `JdbcUtils`는 JDBC 리소스를 안전하고 편리하게 종료할 수 있도록 돕는 유틸리티 클래스이다.
+- **`JdbcUtils`는 JDBC 리소스를 안전하고 편리하게 종료할 수 있도록 돕는 유틸리티 클래스**이다.
 
 #### 커넥션 풀을 사용하더라도 프록시 객체는 매번 재생성하게 된다.
 ```plain
@@ -240,10 +240,10 @@ get connection=HikariProxyConnection@xxxxxxxx1 wrapping conn0: url=jdbc:h2:...us
 get connection=HikariProxyConnection@xxxxxxxx2 wrapping conn0: url=jdbc:h2:...user=SA
 get connection=HikariProxyConnection@xxxxxxxx3 wrapping conn0: url=jdbc:h2:...user=SA
 ```
-- 실제 커넥션 객체는 `conn0`로 동일하지만, 이를 감싸는 프록시 객체의 참조값이 매번 다른 것을 확인할 수 있는데, 이는 시스템의 안전성과 독립성을 위한 설계이다. 
+- **실제 커넥션 객체는 `conn0`로 동일하지만, 이를 감싸는 프록시 객체의 참조값이 매번 다른 것을 확인**할 수 있는데, 이는 **시스템의 안전성과 독립성을 위한 설계**이다. 
 - 이보다 **실제 커넥션 객체(target) 자체는 요청 시점마다 재생성되는 것이 아니다**는 사실이 훨씬 중요하다.
 
 #### DataSource 도입 의의
-- 커넥션을 획득하는 방법을 변경(`DriverManagerDataSource` → `HikariDataSource`)하더라도 애플리케이션 코드(`MemberRepositoryV1`)는 전혀 변경되지 않았다.
-  - 이는 애플리케이션 코드가 인터페이스(`DataSource`)에 의존하고 있기 때문이다.
-- 다형성과 DI를 활용한 덕분에, OCP를 준수하게 되었다.
+- **커넥션을 획득하는 방법을 변경(`DriverManagerDataSource` → `HikariDataSource`)하더라도 애플리케이션 코드(`MemberRepositoryV1`)는 전혀 변경되지 않았다.**
+  - 이는 **애플리케이션 코드가 인터페이스(`DataSource`)에 의존하고 있기 때문**이다.
+- **다형성과 DI를 활용한 덕분에, OCP를 준수**하게 되었다.
